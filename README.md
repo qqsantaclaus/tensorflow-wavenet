@@ -102,6 +102,12 @@ size of the embedding vector that is looked up based on the id of the speaker.
 
 The global conditioning logic in train.py and audio_reader.py is "hard-wired" to the VCTK corpus at the moment in that it expects to be able to determine the speaker id from the pattern of file naming used in VCTK, but can be easily be modified.
 
+## Training with Local Conditioning
+If use local condition, each wav file should be accompanied by a csv file of name format "wave name_ext name.csv" with rows being time series and columns being numerical local conditions (no header). Ext name part is provided by input argument. It is assumed that the time series is of equal timestep and covers the same time span as wav and can be less frequent than wav. 
+```
+--use_lc=True --lc_ext_name="xxxx"
+```
+
 ## Generating audio
 
 [Example output](https://soundcloud.com/user-731806733/tensorflow-wavenet-500-msec-88k-train-steps)
