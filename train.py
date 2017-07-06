@@ -381,6 +381,10 @@ def test_reader():
             gc_id_batch = None
         
         lc_batch = reader.dequeue_lc(args.batch_size)
+
+        sess = tf.Session(config=tf.ConfigProto(log_device_placement=False))
+        init = tf.global_variables_initializer()
+        sess.run(init)
         reader.start_threads(sess)
 
 if __name__ == '__main__':
