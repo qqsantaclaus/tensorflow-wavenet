@@ -142,7 +142,7 @@ class AudioReader(object):
             self.gc_enqueue = self.gc_queue.enqueue([self.id_placeholder])
         
         if self.lc_ext_name is not None:
-            self.lc_placeholder = tf.placeholder(dtype=tf.int32, shape=None)
+            self.lc_placeholder = tf.placeholder(dtype=tf.float32, shape=None)
             self.lc_queue = tf.PaddingFIFOQueue(queue_size, ['float32'],
                                                 shapes=[(None, 1)])
             self.lc_enqueue = self.lc_queue.enqueue([self.lc_placeholder])
