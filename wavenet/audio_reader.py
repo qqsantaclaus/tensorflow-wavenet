@@ -104,7 +104,7 @@ def not_all_have_lc(files, lc_ext_name):
     for file in files:
         lc_filename = copy.deepcopy(file)
         if lc_filename.endswith('.wav'):
-            lc_filename = lc_filename[:-4]+lc_ext_name
+            lc_filename = lc_filename[:-4]+lc_ext_name+".csv"
             print lc_filename
             if not os.path.isfile(lc_filename):
                 return True
