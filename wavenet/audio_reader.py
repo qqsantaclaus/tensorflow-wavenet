@@ -14,11 +14,11 @@ FILE_PATTERN = r'p([0-9]+)_([0-9]+)\.wav'
 
 
 def get_category_cardinality(files):
-    id_reg_expression = re.compile(FILE_PATTERN)
+    id_reg_exp = re.compile(FILE_PATTERN)
     min_id = None
     max_id = None
     for filename in files:
-        matches = id_reg_expression.findall(filename)[0]
+        matches = id_reg_exp.findall(filename)[0]
         id, recording_id = [int(id_) for id_ in matches]
         if min_id is None or id < min_id:
             min_id = id
