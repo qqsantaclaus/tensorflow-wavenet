@@ -196,7 +196,7 @@ class AudioReader(object):
         stop = False
         # Go through the dataset multiple times
         while not stop:
-            iterator = load_generic_audio(self.audio_dir, self.sample_rate)
+            iterator = load_generic_audio(self.audio_dir, self.sample_rate, self.lc_ext_name)
             for audio, filename, category_id, lc in iterator:
                 print lc
                 print lc.shape
