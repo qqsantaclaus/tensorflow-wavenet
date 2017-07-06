@@ -141,7 +141,7 @@ class AudioReader(object):
                                                 shapes=[()])
             self.gc_enqueue = self.gc_queue.enqueue([self.id_placeholder])
         
-        if self.lc_ext_name:
+        if self.lc_ext_name is not None:
             self.lc_placeholder = tf.placeholder(dtype=tf.int32, shape=None)
             self.lc_queue = tf.PaddingFIFOQueue(queue_size, ['float32'],
                                                 shapes=[(None, 1)])
@@ -174,7 +174,7 @@ class AudioReader(object):
             self.gc_category_cardinality = None
         
         # Check local conditions
-        if self.lc_ext_name:
+        if self.lc_ext_name is not None:
             if not_all_have_lc(files, self.lc_ext_name):
                 raise ValueError("Local condition is enabled, but not all wave files have local conditions.")  
 
@@ -200,7 +200,7 @@ class AudioReader(object):
                 if self.silence_threshold is not None:
                     # Remove silence
                     audio, keep_indices = trim_silence(audio[:, 0], self.silence_threshold)
-                    if self.lc_ext_name:
+                    if self.lc_ext_name is not None:
                         lc = lc[keep_indices[0]: keep_indices[-1], :]
                     audio = audio.reshape(-1, 1)
                     if audio.size == 0:
@@ -211,7 +211,7 @@ class AudioReader(object):
 
                 audio = np.pad(audio, [[self.receptive_field, 0], [0, 0]],
                                'constant')
-                if self.lc_ext_name:
+                if self.lc_ext_name is not None:
                     lc = np.pad(lc, [[self.receptive_field, 0], [0, 0]],
                                'constant')
                 if self.sample_size:
@@ -220,13 +220,13 @@ class AudioReader(object):
                     while len(audio) > self.receptive_field:
                         piece = audio[:(self.receptive_field +
                                         self.sample_size), :]
-                        if self.lc_ext_name:
+                        if self.lc_ext_name is not None:
                             lc_piece = lc[:(self.receptive_field +
                                         self.sample_size), :]
                         sess.run(self.enqueue,
                                  feed_dict={self.sample_placeholder: piece})
                         audio = audio[self.sample_size:, :]
-                        if self.lc_ext_name:
+                        if self.lc_ext_name is not None:
                             sess.run(self.lc_enqueue,
                                  feed_dict={self.lc_placeholder: lc_piece})
                             lc = lc[self.sample_size:, :]
@@ -239,7 +239,7 @@ class AudioReader(object):
                     if self.gc_enabled:
                         sess.run(self.gc_enqueue,
                                  feed_dict={self.id_placeholder: category_id})
-                    if self.lc_ext_name:
+                    if self.lc_ext_name is not None:
                         sess.run(self.lc_enqueue,
                                  feed_dict={self.lc_placeholder: lc})
                     
