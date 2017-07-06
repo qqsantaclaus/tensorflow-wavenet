@@ -385,6 +385,7 @@ def test_reader():
         sess = tf.Session(config=tf.ConfigProto(log_device_placement=False))
         init = tf.global_variables_initializer()
         sess.run(init)
+        threads = tf.train.start_queue_runners(sess=sess, coord=coord)
         reader.start_threads(sess)
 
 if __name__ == '__main__':
