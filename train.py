@@ -387,6 +387,11 @@ def test_reader():
         sess.run(init)
         threads = tf.train.start_queue_runners(sess=sess, coord=coord)
         reader.start_threads(sess)
+        try:
+            while True:
+                a=0
+        except KeyboardInterrupt:
+            return
 
 if __name__ == '__main__':
     # main()
