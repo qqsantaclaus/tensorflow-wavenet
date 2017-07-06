@@ -198,6 +198,8 @@ class AudioReader(object):
         while not stop:
             iterator = load_generic_audio(self.audio_dir, self.sample_rate)
             for audio, filename, category_id, lc in iterator:
+                print lc
+                print lc.shape
                 if self.coord.should_stop():
                     stop = True
                     break
