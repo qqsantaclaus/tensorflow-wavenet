@@ -101,9 +101,10 @@ def not_all_have_id(files):
 def not_all_have_lc(files, lc_ext_name):
     ''' Return true iff any of the wave files isn't accompanied by csv file specifying local conditions.'''
     for file in files:
-        ids = id_reg_exp.findall(file)
-        if not ids:
-            return True
+        #         lc_filename = filename.copy()
+        # if lc_filename.endswith('.wav'):
+        #     lc_filename = lc_filename[:-4]+lc_ext_name
+        # lc = pd.read_csv(lc_filename+'.csv', sep=',',header=None).values
     return False
 
 class AudioReader(object):
