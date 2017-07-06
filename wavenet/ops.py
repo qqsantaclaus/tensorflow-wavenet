@@ -144,7 +144,7 @@ def upsample_tconv(factor, input_time_series):
                 upsample_filt_pl = tf.placeholder(tf.float32)
                 logits_pl = tf.placeholder(tf.float32)
 
-                upsample_filter_np = bilinear_upsample_weights(factor,
+                upsample_filter_np = upsample_weights(factor,
                                         number_of_classes)
 
                 res = tf.nn.conv2d_transpose(logits_pl, upsample_filt_pl,
