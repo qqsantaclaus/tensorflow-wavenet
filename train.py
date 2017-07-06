@@ -332,6 +332,59 @@ def main():
         coord.request_stop()
         coord.join(threads)
 
+def test_reader():
+    args = get_arguments()
+    try:
+        directories = validate_directories(args)
+    except ValueError as e:
+        print("Some arguments are wrong:")
+        print(str(e))
+        return
+
+    logdir = directories['logdir']
+    restore_from = directories['restore_from']
+
+    # Even if we restored the model, we will treat it as new training
+    # if the trained model is written into an arbitrary location.
+    is_overwritten_training = logdir != restore_from
+
+    with open(args.wavenet_params, 'r') as f:
+        wavenet_params = json.load(f)
+
+    # Create coordinator.
+    coord = tf.train.Coordinator()
+
+    # Load raw waveform from VCTK corpus.
+    with tf.name_scope('create_inputs'):
+        # Allow silence trimming to be skipped by specifying a threshold near
+        # zero.
+        silence_threshold = args.silence_threshold if args.silence_threshold > \
+                                                        EPSILON else None
+        gc_enabled = args.gc_channels is not None
+        reader = AudioReader(
+            '/test/data/',
+            coord,
+            sample_rate=wavenet_params['sample_rate'],
+            gc_enabled=gc_enabled,
+            receptive_field=WaveNetModel.calculate_receptive_field(wavenet_params["filter_width"],
+                                                                    wavenet_params["dilations"],
+                                                                    wavenet_params["scalar_input"],
+                                                                    wavenet_params["initial_filter_width"]),
+            sample_size=args.sample_size,
+            silence_threshold=silence_threshold, 
+            lc_ext_name='')
+            
+        audio_batch = reader.dequeue(args.batch_size)
+        if gc_enabled:
+            gc_id_batch = reader.dequeue_gc(args.batch_size)
+        else:
+            gc_id_batch = None
+        
+        lc_batch = reader.dequeue_lc(args.batch_size)
+        print lc_batch
 
 if __name__ == '__main__':
-    main()
+    # main()
+    test_reader()
+    
+

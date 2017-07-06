@@ -1,4 +1,5 @@
 from __future__ import division
+import pandas as pd
 
 import tensorflow as tf
 
@@ -84,3 +85,76 @@ def mu_law_decode(output, quantization_channels):
         # Perform inverse of mu-law transformation.
         magnitude = (1 / mu) * ((1 + mu)**abs(signal) - 1)
         return tf.sign(signal) * magnitude
+
+# Upsample algos
+def get_kernel_size(factor):
+    """
+    Find the kernel size given the desired factor of upsampling.
+    """
+    return 2 * factor - factor % 2
+
+
+def upsample_filt(size):
+    """
+    Make a 2D bilinear kernel suitable for upsampling of the given (h, w) size.
+    """
+    factor = (size + 1) // 2
+    if size % 2 == 1:
+        center = factor - 1
+    else:
+        center = factor - 0.5
+    og = np.zeros((size), dtype=np.float32)
+    return (1 - abs(og - center) / factor)
+
+
+def upsample_weights(factor, number_of_classes):
+    """
+    Create weights matrix for transposed convolution with bilinear filter
+    initialization.
+    """
+    
+    filter_size = get_kernel_size(factor)
+    
+    weights = np.zeros((1,
+                        filter_size,
+                        number_of_classes), dtype=np.float32)
+    
+    upsample_kernel = upsample_filt(filter_size)
+    
+    for i in xrange(number_of_classes):
+        
+        weights[0, :, i] = upsample_kernel
+    
+    return weights
+
+
+def upsample_tconv(factor, input_time_series):
+    
+    number_of_classes = input_time_series.shape[1]
+    
+    new_length = input_time_series.shape[0] * factor
+    
+    expanded_time_series = np.expand_dims(input_time_series, axis=0)
+
+    with tf.Graph().as_default():
+        with tf.Session() as sess:
+            with tf.device("/cpu:0"):
+
+                upsample_filt_pl = tf.placeholder(tf.float32)
+                logits_pl = tf.placeholder(tf.float32)
+
+                upsample_filter_np = bilinear_upsample_weights(factor,
+                                        number_of_classes)
+
+                res = tf.nn.conv2d_transpose(logits_pl, upsample_filt_pl,
+                        output_shape=[1, new_length, number_of_classes],
+                        strides=[1, factor, 1])
+
+                final_result = sess.run(res,
+                                feed_dict={upsample_filt_pl: upsample_filter_np,
+                                           logits_pl: expanded_img})
+    
+    return final_result.squeeze()
+
+def upsample_fill(factor, input_time_series):
+    return np.repeat(input_time_series, factor, axis=0)
