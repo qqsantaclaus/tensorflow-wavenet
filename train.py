@@ -362,7 +362,7 @@ def test_reader():
                                                         EPSILON else None
         gc_enabled = args.gc_channels is not None
         reader = AudioReader(
-            '/test/data/',
+            'test/data/',
             coord,
             sample_rate=wavenet_params['sample_rate'],
             gc_enabled=gc_enabled,
