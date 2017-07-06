@@ -381,7 +381,6 @@ def test_reader():
             gc_id_batch = None
         
         lc_batch = reader.dequeue_lc(args.batch_size)
-        print lc_batch
 
 if __name__ == '__main__':
     # main()
