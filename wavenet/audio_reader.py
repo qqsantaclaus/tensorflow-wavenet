@@ -47,7 +47,7 @@ def align_local_condition(local_condition, length):
     # TODO
     factor = int(length / local_condition.shape[0])
     diff = length - factor*local_condition.shape[0]
-    prepared_lc = np.pad(audio, [[diff, 0], [0, 0]],
+    prepared_lc = np.pad(local_condition, [[diff, 0], [0, 0]],
                                'constant')
     upsampled_lc = ops.upsample_tconv(factor, prepared_lc)
     return upsampled_lc
