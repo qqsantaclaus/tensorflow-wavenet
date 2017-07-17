@@ -9,6 +9,7 @@ import os
 import librosa
 import numpy as np
 import tensorflow as tf
+import pandas as pd
 
 from wavenet import WaveNetModel, mu_law_decode, mu_law_encode, audio_reader
 
@@ -95,6 +96,16 @@ def get_arguments():
         type=int,
         default=None,
         help='ID of category to generate, if globally conditioned.')
+    parser.add_argument(
+        '--lc_channels', 
+        type=int, 
+        default=0,
+        help='Number of local condition channels. Should be consistent with the local condition file provided. Default: 0')
+    parser.add_argument(
+        '--lc_path', 
+        type=str,
+        default=None,
+        help='The path to the local condition csv file (no header). If not provided, assume no local condition.') 
     arguments = parser.parse_args()
     if arguments.gc_channels is not None:
         if arguments.gc_cardinality is None:
@@ -134,6 +145,16 @@ def create_seed(filename,
 
 def main():
     args = get_arguments()
+    if args.lc_channels > 0:
+        if args.lc_path is not None:
+            lc = pd.read_csv(args.lc_path, sep=',',header=None).values
+        else:
+            lc = np.zeros(shape=(1, args.lc_channels))
+        lc = audio_reader.align_local_condition(lc, args.samples)
+        lc_placeholder = tf.placeholder(tf.float32)
+    else:
+        lc = None
+
     started_datestring = "{0:%Y-%m-%dT%H-%M-%S}".format(datetime.now())
     logdir = os.path.join(args.logdir, 'generate', started_datestring)
     with open(args.wavenet_params, 'r') as config_file:
@@ -153,14 +174,15 @@ def main():
         scalar_input=wavenet_params['scalar_input'],
         initial_filter_width=wavenet_params['initial_filter_width'],
         global_condition_channels=args.gc_channels,
-        global_condition_cardinality=args.gc_cardinality)
+        global_condition_cardinality=args.gc_cardinality,
+        local_condition_channels=args.lc_channels)
 
     samples = tf.placeholder(tf.int32)
 
     if args.fast_generation:
-        next_sample = net.predict_proba_incremental(samples, args.gc_id)
+        next_sample = net.predict_proba_incremental(samples, args.gc_id, local_condition = lc_placeholder)
     else:
-        next_sample = net.predict_proba(samples, args.gc_id)
+        next_sample = net.predict_proba(samples, args.gc_id,  local_condition = lc_placeholder)
 
     if args.fast_generation:
         sess.run(tf.global_variables_initializer())
@@ -211,15 +233,23 @@ def main():
             outputs = [next_sample]
             outputs.extend(net.push_ops)
             window = waveform[-1]
+            print(window)
+            if args.lc_channels > 0:
+                lc_window = np.reshape(lc[-1], (1, -1))
+                print(lc_window)
         else:
             if len(waveform) > net.receptive_field:
                 window = waveform[-net.receptive_field:]
+                if args.lc_channels > 0:
+                    lc_window = lc[-net.receptive_field:]
             else:
                 window = waveform
+                if args.lc_channels > 0:
+                    lc_window = lc
             outputs = [next_sample]
-
+        
         # Run the WaveNet to predict the next sample.
-        prediction = sess.run(outputs, feed_dict={samples: window})[0]
+        prediction = sess.run(outputs, feed_dict={samples: window, lc_placeholder: lc_window})[0]
 
         # Scale prediction distribution using temperature.
         np.seterr(divide='ignore')

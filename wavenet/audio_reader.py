@@ -46,10 +46,10 @@ def find_files(directory, pattern='*.wav'):
 def align_local_condition(local_condition, length):
     # TODO
     factor = int(length / local_condition.shape[0])
-    diff = length - factor*local_condition.shape[0]
-    prepared_lc = np.pad(local_condition, [[diff, 0], [0, 0]],
+    upsampled_lc = ops.upsample_fill(factor, local_condition)
+    diff = length - upsampled_lc.shape[0]
+    upsampled_lc = np.pad(upsampled_lc, [[diff, 0], [0, 0]],
                                'constant')
-    upsampled_lc = ops.upsample_tconv(factor, prepared_lc)
     return upsampled_lc
 
 def load_generic_audio(directory, sample_rate, lc_ext_name):
@@ -86,7 +86,7 @@ def trim_silence(audio, threshold, frame_length=2048):
     indices = librosa.core.frames_to_samples(frames)[1]
 
     # Note: indices can be an empty array, if the whole audio was silence.
-    return audio[indices[0]:indices[-1]] if indices.size else audio[0:0], indices
+    return (audio[indices[0]:indices[-1]], indices) if indices.size else (audio[0:0], None)
 
 
 def not_all_have_id(files):
@@ -198,28 +198,33 @@ class AudioReader(object):
         while not stop:
             iterator = load_generic_audio(self.audio_dir, self.sample_rate, self.lc_ext_name)
             for audio, filename, category_id, lc in iterator:
-                print lc
-                print lc.shape
                 if self.coord.should_stop():
                     stop = True
                     break
                 if self.silence_threshold is not None:
                     # Remove silence
                     audio, keep_indices = trim_silence(audio[:, 0], self.silence_threshold)
-                    if self.lc_ext_name is not None:
-                        lc = lc[keep_indices[0]: keep_indices[-1], :]
                     audio = audio.reshape(-1, 1)
                     if audio.size == 0:
                         print("Warning: {} was ignored as it contains only "
                               "silence. Consider decreasing trim_silence "
                               "threshold, or adjust volume of the audio."
                               .format(filename))
-
+                    else:
+                        if self.lc_ext_name is not None:
+                            lc = lc[keep_indices[0]:keep_indices[-1], :]
+                        
                 audio = np.pad(audio, [[self.receptive_field, 0], [0, 0]],
                                'constant')
                 if self.lc_ext_name is not None:
-                    lc = np.pad(lc, [[self.receptive_field, 0], [0, 0]],
-                               'constant')
+                    # lc = np.pad(lc, [[self.receptive_field, 0], [0, 0]],
+                    #            'constant')
+                    '''
+                    temp
+                    '''
+                    lc_arr = np.asarray(lc)
+                    np.savetxt(filename+"_processed.csv", lc_arr, delimiter=",")
+                # assert(lc.shape[0] == audio.shape[0] - receptive_field)
                 if self.sample_size:
                     # Cut samples into pieces of size receptive_field +
                     # sample_size with receptive_field overlap
@@ -239,6 +244,7 @@ class AudioReader(object):
                         if self.gc_enabled:
                             sess.run(self.gc_enqueue, feed_dict={
                                 self.id_placeholder: category_id})
+                        print piece.shape, lc_piece.shape
                 else:
                     sess.run(self.enqueue,
                              feed_dict={self.sample_placeholder: audio})

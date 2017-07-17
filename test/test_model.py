@@ -53,6 +53,37 @@ def make_sine_waves(global_conditioning):
 
     return amplitudes, speaker_ids
 
+def make_mixed_sine_waves(aligned = True):
+    """Creates a time-series of sinusoidal audio amplitudes."""
+    sample_period = 1.0/SAMPLE_RATE_HZ
+    times = np.arange(0.0, SAMPLE_DURATION, sample_period)
+    
+    amplitudes = np.zeros(shape=(1, len(times)))
+    
+    LEADING_SILENCE = random.randint(10, 128)
+    
+    piece_length = int(len(times - LEADING_SILENCE)/3)
+
+    speaker_ids = np.zeros(shape=(1, len(times), NUM_SPEAKERS), dtype=np.int)
+    speaker_ids[0, -3*piece_length:-2*piece_length, :] = [1, 0, 0]
+    speaker_ids[0, -2*piece_length:-piece_length, :] = [0, 1, 0]
+    speaker_ids[0, -piece_length:, :] = [0, 0, 1]
+
+    amplitudes[0, :-3*piece_length] = 0.0
+
+    start_time = (len(times)-3*piece_length) / SAMPLE_RATE_HZ
+    # TODO
+    times = times[-3*piece_length:] - start_time
+    amplitudes[0, -3*piece_length:-2*piece_length] = 0.6 * np.sin(times[:piece_length] *
+                                                    2.0 * np.pi * F1)
+    times = times[piece_length:] - times[piece_length]                                           
+    amplitudes[0, -2*piece_length:-piece_length] = 0.5 * np.sin(times[:piece_length] *
+                                                    2.0 * np.pi * F2)
+    times = times[piece_length:] - times[piece_length]                                                
+    amplitudes[0, -piece_length:] = 0.4 * np.sin(times *
+                                                    2.0 * np.pi * F3)
+    return amplitudes, speaker_ids
+
 
 def generate_waveform(sess, net, fast_generation, gc, samples_placeholder,
                       gc_placeholder, operations):
@@ -180,6 +211,7 @@ class TestNet(tf.test.TestCase):
         self.generate = False
         self.momentum = MOMENTUM
         self.global_conditioning = False
+        self.local_conditioning = False
         self.train_iters = TRAIN_ITERATIONS
         self.net = WaveNetModel(batch_size=1,
                                 dilations=[1, 2, 4, 8, 16, 32, 64,
@@ -190,7 +222,8 @@ class TestNet(tf.test.TestCase):
                                 quantization_channels=QUANTIZATION_CHANNELS,
                                 skip_channels=32,
                                 global_condition_channels=None,
-                                global_condition_cardinality=None)
+                                global_condition_cardinality=None,
+                                local_condition_channels=None)
 
     def _save_net(sess):
         saver = tf.train.Saver(var_list=tf.trainable_variables())
@@ -205,7 +238,7 @@ class TestNet(tf.test.TestCase):
 
     def testEndToEndTraining(self):
         def CreateTrainingFeedDict(audio, speaker_ids, audio_placeholder,
-                                   gc_placeholder, i):
+                                   gc_placeholder, i, lc_placeholder):
             speaker_index = 0
             if speaker_ids is None:
                 # No global conditioning.
@@ -216,7 +249,11 @@ class TestNet(tf.test.TestCase):
             return feed_dict, speaker_index
 
         np.random.seed(42)
-        audio, speaker_ids = make_sine_waves(self.global_conditioning)
+        if self.local_conditioning:
+            # TODO
+            print "here"
+        else:
+            audio, speaker_ids = make_sine_waves(self.global_conditioning)
         # Pad with 0s (silence) times size of the receptive field minus one,
         # because the first sample of the training data is 0 and if the network
         # learns to predict silence based on silence, it will generate only
@@ -318,6 +355,7 @@ class TestNetWithBiases(TestNet):
         self.generate = False
         self.momentum = MOMENTUM
         self.global_conditioning = False
+        self.local_conditioning = False
         self.train_iters = TRAIN_ITERATIONS
 
 
@@ -341,6 +379,7 @@ class TestNetWithRMSProp(TestNet):
         self.momentum = MOMENTUM
         self.train_iters = TRAIN_ITERATIONS
         self.global_conditioning = False
+        self.local_conditioning = False
 
 
 class TestNetWithScalarInput(TestNet):
@@ -365,6 +404,7 @@ class TestNetWithScalarInput(TestNet):
         self.generate = False
         self.momentum = MOMENTUM
         self.global_conditioning = False
+        self.local_conditioning = False
         self.train_iters = 1000
 
 
@@ -378,6 +418,7 @@ class TestNetWithGlobalConditioning(TestNet):
         self.generate = True
         self.momentum = MOMENTUM
         self.global_conditioning = True
+        self.local_conditioning = False
         self.train_iters = 1000
         self.net = WaveNetModel(batch_size=NUM_SPEAKERS,
                                 dilations=[1, 2, 4, 8, 16, 32, 64,
@@ -390,6 +431,36 @@ class TestNetWithGlobalConditioning(TestNet):
                                 skip_channels=256,
                                 global_condition_channels=NUM_SPEAKERS,
                                 global_condition_cardinality=NUM_SPEAKERS)
+
+class TestNetWithLocalConditioning(TestNet):
+    '''
+    Construct a waveform equally composed of F1, F2 & F3.
+    The local condition accompanied is one-hot encoding of 0, 1 & 2
+    The network should overfit to learn the all three types of waveforms at once
+    '''
+    def setUp(self):
+        print('TestNetWithLocalConditioning setup.')
+        sys.stdout.flush()
+
+        self.optimizer_type = 'sgd'
+        self.learning_rate = 0.01
+        self.generate = True
+        self.momentum = MOMENTUM
+        self.global_conditioning = False
+        self.local_conditioning = True
+        self.train_iters = 1000
+        self.net = WaveNetModel(batch_size=NUM_SPEAKERS,
+                                dilations=[1, 2, 4, 8, 16, 32, 64,
+                                           1, 2, 4, 8, 16, 32, 64],
+                                filter_width=2,
+                                residual_channels=32,
+                                dilation_channels=32,
+                                quantization_channels=QUANTIZATION_CHANNELS,
+                                use_biases=True,
+                                skip_channels=256,
+                                global_condition_channels=None,
+                                global_condition_cardinality=None,
+                                local_condition_channels = NUM_SPEAKERS)
 
 
 if __name__ == '__main__':

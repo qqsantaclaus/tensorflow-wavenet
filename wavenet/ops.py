@@ -118,44 +118,49 @@ def upsample_weights(factor, number_of_classes):
     
     weights = np.zeros((1,
                         filter_size,
-                        number_of_classes), dtype=np.float32)
+                        number_of_classes, number_of_classes), dtype=np.float32)
     
     upsample_kernel = upsample_filt(filter_size)
     
     for i in xrange(number_of_classes):
         
-        weights[0, :, i] = upsample_kernel
+        weights[:, :, i, i] = upsample_kernel
     
     return weights
 
 
-def upsample_tconv(factor, input_time_series):
+# def upsample_tconv(factor, input_time_series):
+#     '''
+#     input_time_series
+#     axis 0: time steps, width
+#     axis 1: one local condition description, in_channels
+#     '''
     
-    number_of_classes = input_time_series.shape[1]
+#     number_of_classes = input_time_series.shape[1]
     
-    new_length = input_time_series.shape[0] * factor
+#     new_length = input_time_series.shape[0] * factor
     
-    expanded_time_series = np.expand_dims(input_time_series, axis=0)
+#     expanded_time_series = input_time_series[np.newaxis, np.newaxis, :, :]
 
-    with tf.Graph().as_default():
-        with tf.Session() as sess:
-            with tf.device("/cpu:0"):
+#     with tf.Graph().as_default():
+#         with tf.Session() as sess:
+#             with tf.device("/cpu:0"):
 
-                upsample_filt_pl = tf.placeholder(tf.float32)
-                logits_pl = tf.placeholder(tf.float32)
+#                 upsample_filt_pl = tf.placeholder(tf.float32)
+#                 logits_pl = tf.placeholder(tf.float32)
 
-                upsample_filter_np = upsample_weights(factor,
-                                        number_of_classes)
+#                 upsample_filter_np = upsample_weights(factor,
+#                                         number_of_classes)
 
-                res = tf.nn.conv2d_transpose(logits_pl, upsample_filt_pl,
-                        output_shape=[1, new_length, number_of_classes],
-                        strides=[1, factor, 1])
+#                 res = tf.nn.conv2d_transpose(logits_pl, upsample_filt_pl,
+#                         output_shape=[1, 1, new_length, number_of_classes],
+#                         strides=[1, 1, factor, 1])
 
-                final_result = sess.run(res,
-                                feed_dict={upsample_filt_pl: upsample_filter_np,
-                                           logits_pl: expanded_img})
+#                 final_result = sess.run(res,
+#                                 feed_dict={upsample_filt_pl: upsample_filter_np,
+#                                            logits_pl: expanded_time_series})
     
-    return final_result.squeeze()
+#    return final_result.squeeze(axis=0).squeeze(axis=0)
 
 def upsample_fill(factor, input_time_series):
     return np.repeat(input_time_series, factor, axis=0)

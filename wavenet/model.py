@@ -268,9 +268,7 @@ class WaveNetModel(object):
                  all time steps.
              local_condition_batch: Tensor containing the local data upon
                  which the output is to be conditioned upon. Shape:
-                 [batch size, # of time steps, channels]. The 1 is for the axis
-                 corresponding to time so that the result is broadcast to
-                 all time steps.
+                 [batch size, # of time steps, channels]. 
 
         The layer contains a gated filter that connects to dense output
         and to a skip connection:
@@ -300,7 +298,19 @@ class WaveNetModel(object):
                                                      weights_gc_filter,
                                                      stride=1,
                                                      padding="SAME",
-                                                     name="_filter")
+                                                     name="gc_filter")
+            weights_gc_gate = variables['gc_gateweights']
+            conv_gate = conv_gate + tf.nn.conv1d(global_condition_batch,
+                                                 weights_gc_gate,
+                                                 stride=1,
+                                                 padding="SAME",
+                                                 name="gc_gate")
+            weights_gc_filter = variables['gc_filtweights']
+            conv_filter = conv_filter + tf.nn.conv1d(global_condition_batch,
+                                                     weights_gc_filter,
+                                                     stride=1,
+                                                     padding="SAME",
+                                                     name="gc_filter")
             weights_gc_gate = variables['gc_gateweights']
             conv_gate = conv_gate + tf.nn.conv1d(global_condition_batch,
                                                  weights_gc_gate,
@@ -310,17 +320,23 @@ class WaveNetModel(object):
         
         if local_condition_batch is not None:
             weights_lc_filter = variables['lc_filtweights']
-            conv_filter = conv_filter + tf.nn.conv1d(local_condition_batch,
+            padded_local_condition_batch = tf.pad(local_condition_batch, 
+                                            [[0, 0], 
+                                             [tf.shape(conv_filter)[1]-tf.shape(local_condition_batch)[1], 0],
+                                             [0, 0]])
+            temp1 = tf.nn.conv1d(padded_local_condition_batch,
                                                      weights_lc_filter,
                                                      stride=1,
                                                      padding="SAME",
                                                      name="lc_filter")
+            conv_filter = conv_filter + temp1
             weights_lc_gate = variables['lc_gateweights']
-            conv_gate = conv_gate + tf.nn.conv1d(local_condition_batch,
+            temp2 = tf.nn.conv1d(padded_local_condition_batch,
                                                  weights_lc_gate,
                                                  stride=1,
                                                  padding="SAME",
                                                  name="lc_gate")
+            onv_gate = conv_gate + temp2
 
         if self.use_biases:
             filter_bias = variables['filter_bias']
@@ -412,12 +428,17 @@ class WaveNetModel(object):
         
         if local_condition_batch is not None:
             weights_lc_filter = variables['lc_filtweights']
+            weights_lc_filter = weights_lc_filter[0, :, :]
             weights_lc_gate = variables['lc_gateweights']
-            
-            output_filter += tf.nn.conv1d(local_condition_batch, 
-                weights_lc_filter, stride=1, padding='SAME')
-            output_gate += tf.nn.conv1d(local_condition_batch, 
-                weights_lc_gate, stride=1, padding='SAME')
+            weights_lc_gate = weights_lc_gate[0, :, :]
+            print(weights_lc_filter)
+            # padded_local_condition_batch = tf.pad(local_condition_batch, 
+            #                     [[tf.shape(output_filter)[1]-tf.shape(local_condition_batch)[1], 0],
+            #                      [0, 0]])
+            output_filter += tf.matmul(local_condition_batch, 
+                weights_lc_filter)
+            output_gate += tf.matmul(local_condition_batch, 
+                weights_lc_gate)
 
         if self.use_biases:
             output_filter = output_filter + variables['filter_bias']

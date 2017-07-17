@@ -29,7 +29,7 @@ WAVENET_PARAMS = './wavenet_params.json'
 STARTED_DATESTRING = "{0:%Y-%m-%dT%H-%M-%S}".format(datetime.now())
 SAMPLE_SIZE = 100000
 L2_REGULARIZATION_STRENGTH = 0
-SILENCE_THRESHOLD = 0.3
+SILENCE_THRESHOLD = 0.05
 EPSILON = 0.001
 MOMENTUM = 0.9
 MAX_TO_KEEP = 5
@@ -103,6 +103,10 @@ def get_arguments():
     parser.add_argument('--max_checkpoints', type=int, default=MAX_TO_KEEP,
                         help='Maximum amount of checkpoints that will be kept alive. Default: '
                              + str(MAX_TO_KEEP) + '.')
+    parser.add_argument('--lc_channels', type=int, default=0,
+                        help='Number of local condition channels. Default: 0')
+    parser.add_argument('--lc_ext_name', type=str, default=None,
+                        help='The extended name part for local condition csv files. Default: None')                    
     return parser.parse_args()
 
 
@@ -188,6 +192,11 @@ def validate_directories(args):
 def main():
     args = get_arguments()
 
+    if args.lc_channels > 0:
+        lc_ext_name = ''
+    else:
+        lc_ext_name = None
+
     try:
         directories = validate_directories(args)
     except ValueError as e:
@@ -225,12 +234,21 @@ def main():
                                                                    wavenet_params["scalar_input"],
                                                                    wavenet_params["initial_filter_width"]),
             sample_size=args.sample_size,
-            silence_threshold=silence_threshold)
+            silence_threshold = silence_threshold,
+            lc_ext_name = lc_ext_name)
         audio_batch = reader.dequeue(args.batch_size)
+
         if gc_enabled:
             gc_id_batch = reader.dequeue_gc(args.batch_size)
         else:
             gc_id_batch = None
+
+        if args.lc_channels > 0:
+            lc_batch = reader.dequeue_lc(args.batch_size)
+            local_condition_channels = lc_batch.shape[2]
+        else:
+            lc_batch = None
+            local_condition_channels = None
 
     # Create network.
     net = WaveNetModel(
@@ -246,13 +264,15 @@ def main():
         initial_filter_width=wavenet_params["initial_filter_width"],
         histograms=args.histograms,
         global_condition_channels=args.gc_channels,
-        global_condition_cardinality=reader.gc_category_cardinality)
+        global_condition_cardinality=reader.gc_category_cardinality,
+        local_condition_channels=args.lc_channels)
 
     if args.l2_regularization_strength == 0:
         args.l2_regularization_strength = None
     loss = net.loss(input_batch=audio_batch,
                     global_condition_batch=gc_id_batch,
-                    l2_regularization_strength=args.l2_regularization_strength)
+                    l2_regularization_strength=args.l2_regularization_strength,
+                    local_condition_batch=lc_batch)
     optimizer = optimizer_factory[args.optimizer](
                     learning_rate=args.learning_rate,
                     momentum=args.momentum)
@@ -394,7 +414,6 @@ def test_reader():
             return
 
 if __name__ == '__main__':
-    # main()
-    test_reader()
+    main()
     
 
