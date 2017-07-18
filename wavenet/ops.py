@@ -87,6 +87,7 @@ def mu_law_decode(output, quantization_channels):
         magnitude = (1 / mu) * ((1 + mu)**abs(signal) - 1)
         return tf.sign(signal) * magnitude
 
+
 # Upsample algos
 def get_kernel_size(factor):
     """
@@ -113,19 +114,20 @@ def upsample_weights(factor, number_of_classes):
     Create weights matrix for transposed convolution with bilinear filter
     initialization.
     """
-    
+
     filter_size = get_kernel_size(factor)
-    
+
     weights = np.zeros((1,
                         filter_size,
-                        number_of_classes, number_of_classes), dtype=np.float32)
-    
+                        number_of_classes,
+                        number_of_classes),
+                       dtype=np.float32)
+
     upsample_kernel = upsample_filt(filter_size)
-    
+
     for i in xrange(number_of_classes):
-        
         weights[:, :, i, i] = upsample_kernel
-    
+
     return weights
 
 
@@ -135,11 +137,11 @@ def upsample_weights(factor, number_of_classes):
 #     axis 0: time steps, width
 #     axis 1: one local condition description, in_channels
 #     '''
-    
+
 #     number_of_classes = input_time_series.shape[1]
-    
+
 #     new_length = input_time_series.shape[0] * factor
-    
+
 #     expanded_time_series = input_time_series[np.newaxis, np.newaxis, :, :]
 
 #     with tf.Graph().as_default():
@@ -157,9 +159,11 @@ def upsample_weights(factor, number_of_classes):
 #                         strides=[1, 1, factor, 1])
 
 #                 final_result = sess.run(res,
-#                                 feed_dict={upsample_filt_pl: upsample_filter_np,
-#                                            logits_pl: expanded_time_series})
-    
+#                                         feed_dict={upsample_filt_pl:
+#                                                       upsample_filter_np,
+#                                                    logits_pl:
+#                                                       expanded_time_series})
+
 #    return final_result.squeeze(axis=0).squeeze(axis=0)
 
 def upsample_fill(factor, input_time_series):

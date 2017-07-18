@@ -53,35 +53,39 @@ def make_sine_waves(global_conditioning):
 
     return amplitudes, speaker_ids
 
-def make_mixed_sine_waves(aligned = True):
+
+def make_mixed_sine_waves(aligned=True):
     """Creates a time-series of sinusoidal audio amplitudes."""
     sample_period = 1.0/SAMPLE_RATE_HZ
     times = np.arange(0.0, SAMPLE_DURATION, sample_period)
-    
+
     amplitudes = np.zeros(shape=(1, len(times)))
-    
+
     LEADING_SILENCE = random.randint(10, 128)
-    
-    piece_length = int(len(times - LEADING_SILENCE)/3)
+
+    piece_len = int(len(times - LEADING_SILENCE)/3)
 
     speaker_ids = np.zeros(shape=(1, len(times), NUM_SPEAKERS), dtype=np.int)
-    speaker_ids[0, -3*piece_length:-2*piece_length, :] = [1, 0, 0]
-    speaker_ids[0, -2*piece_length:-piece_length, :] = [0, 1, 0]
-    speaker_ids[0, -piece_length:, :] = [0, 0, 1]
+    speaker_ids[0, -3*piece_len:-2*piece_len, :] = [1, 0, 0]
+    speaker_ids[0, -2*piece_len:-piece_len, :] = [0, 1, 0]
+    speaker_ids[0, -piece_len:, :] = [0, 0, 1]
 
-    amplitudes[0, :-3*piece_length] = 0.0
+    amplitudes[0, :-3*piece_len] = 0.0
 
-    start_time = (len(times)-3*piece_length) / SAMPLE_RATE_HZ
+    start_time = (len(times)-3*piece_len) / SAMPLE_RATE_HZ
     # TODO
-    times = times[-3*piece_length:] - start_time
-    amplitudes[0, -3*piece_length:-2*piece_length] = 0.6 * np.sin(times[:piece_length] *
-                                                    2.0 * np.pi * F1)
-    times = times[piece_length:] - times[piece_length]                                           
-    amplitudes[0, -2*piece_length:-piece_length] = 0.5 * np.sin(times[:piece_length] *
-                                                    2.0 * np.pi * F2)
-    times = times[piece_length:] - times[piece_length]                                                
-    amplitudes[0, -piece_length:] = 0.4 * np.sin(times *
-                                                    2.0 * np.pi * F3)
+    times = times[-3*piece_len:] - start_time
+    amplitudes[0, -3*piece_len:-2*piece_len] = (0.6 *
+                                                np.sin(
+                                                    times[:piece_len] *
+                                                    2.0 * np.pi * F1))
+    times = times[piece_len:] - times[piece_len]
+    amplitudes[0, -2*piece_len:-piece_len] = (0.5 *
+                                              np.sin(
+                                                  times[:piece_len] *
+                                                  2.0 * np.pi * F2))
+    times = times[piece_len:] - times[piece_len]
+    amplitudes[0, -piece_len:] = 0.4 * np.sin(times * 2.0 * np.pi * F3)
     return amplitudes, speaker_ids
 
 
@@ -432,11 +436,13 @@ class TestNetWithGlobalConditioning(TestNet):
                                 global_condition_channels=NUM_SPEAKERS,
                                 global_condition_cardinality=NUM_SPEAKERS)
 
+
 class TestNetWithLocalConditioning(TestNet):
     '''
     Construct a waveform equally composed of F1, F2 & F3.
     The local condition accompanied is one-hot encoding of 0, 1 & 2
-    The network should overfit to learn the all three types of waveforms at once
+    The network should overfit to learn the all three types of
+    waveforms at once
     '''
     def setUp(self):
         print('TestNetWithLocalConditioning setup.')
@@ -460,7 +466,7 @@ class TestNetWithLocalConditioning(TestNet):
                                 skip_channels=256,
                                 global_condition_channels=None,
                                 global_condition_cardinality=None,
-                                local_condition_channels = NUM_SPEAKERS)
+                                local_condition_channels=NUM_SPEAKERS)
 
 
 if __name__ == '__main__':

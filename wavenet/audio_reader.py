@@ -43,14 +43,16 @@ def find_files(directory, pattern='*.wav'):
             files.append(os.path.join(root, filename))
     return files
 
+
 def align_local_condition(local_condition, length):
     # TODO
     factor = int(length / local_condition.shape[0])
     upsampled_lc = ops.upsample_fill(factor, local_condition)
     diff = length - upsampled_lc.shape[0]
     upsampled_lc = np.pad(upsampled_lc, [[diff, 0], [0, 0]],
-                               'constant')
+                          'constant')
     return upsampled_lc
+
 
 def load_generic_audio(directory, sample_rate, lc_ext_name):
     '''Generator that yields audio waveforms from the directory.'''
@@ -71,11 +73,12 @@ def load_generic_audio(directory, sample_rate, lc_ext_name):
         audio = audio.reshape(-1, 1)
         lc_filename = copy.deepcopy(filename)
         if lc_filename.endswith('.wav'):
-            lc_filename = lc_filename[:-4]+lc_ext_name
-        lc = pd.read_csv(lc_filename+'.csv', sep=',',header=None).values
-        # TODO: upsampling to make lc same number of rows as audio 
+            lc_filename = lc_filename[:-4] + lc_ext_name
+        lc = pd.read_csv(lc_filename+'.csv', sep=',', header=None).values
+        # TODO: upsampling to make lc same number of rows as audio
         lc = align_local_condition(lc, audio.shape[0])
         yield audio, filename, category_id, lc
+
 
 def trim_silence(audio, threshold, frame_length=2048):
     '''Removes silence at the beginning and end of a sample.'''
@@ -86,7 +89,8 @@ def trim_silence(audio, threshold, frame_length=2048):
     indices = librosa.core.frames_to_samples(frames)[1]
 
     # Note: indices can be an empty array, if the whole audio was silence.
-    return (audio[indices[0]:indices[-1]], indices) if indices.size else (audio[0:0], None)
+    return ((audio[indices[0]:indices[-1]], indices)
+            if indices.size else (audio[0:0], None))
 
 
 def not_all_have_id(files):
@@ -99,8 +103,11 @@ def not_all_have_id(files):
             return True
     return False
 
+
 def not_all_have_lc(files, lc_ext_name):
-    ''' Return true iff any of the wave files isn't accompanied by csv file specifying local conditions.'''
+    ''' Return true iff any of the wave files isn't accompanied
+        by csv file specifying local conditions.
+    '''
     for file in files:
         lc_filename = copy.deepcopy(file)
         if lc_filename.endswith('.wav'):
@@ -109,6 +116,7 @@ def not_all_have_lc(files, lc_ext_name):
             if not os.path.isfile(lc_filename):
                 return True
     return False
+
 
 class AudioReader(object):
     '''Generic background audio reader that preprocesses audio files
@@ -144,7 +152,7 @@ class AudioReader(object):
             self.gc_queue = tf.PaddingFIFOQueue(queue_size, ['int32'],
                                                 shapes=[()])
             self.gc_enqueue = self.gc_queue.enqueue([self.id_placeholder])
-        
+
         if self.lc_ext_name is not None:
             self.lc_placeholder = tf.placeholder(dtype=tf.float32, shape=None)
             self.lc_queue = tf.PaddingFIFOQueue(queue_size, ['float32'],
@@ -176,11 +184,12 @@ class AudioReader(object):
                   self.gc_category_cardinality))
         else:
             self.gc_category_cardinality = None
-        
+
         # Check local conditions
         if self.lc_ext_name is not None:
             if not_all_have_lc(files, self.lc_ext_name):
-                raise ValueError("Local condition is enabled, but not all wave files have local conditions.")  
+                raise ValueError('''Local condition is enabled,
+                    but not all wave files have local conditions.''')
 
     def dequeue(self, num_elements):
         output = self.queue.dequeue_many(num_elements)
@@ -196,14 +205,16 @@ class AudioReader(object):
         stop = False
         # Go through the dataset multiple times
         while not stop:
-            iterator = load_generic_audio(self.audio_dir, self.sample_rate, self.lc_ext_name)
+            iterator = load_generic_audio(self.audio_dir, self.sample_rate,
+                                          self.lc_ext_name)
             for audio, filename, category_id, lc in iterator:
                 if self.coord.should_stop():
                     stop = True
                     break
                 if self.silence_threshold is not None:
                     # Remove silence
-                    audio, keep_indices = trim_silence(audio[:, 0], self.silence_threshold)
+                    audio, keep_indices = trim_silence(audio[:, 0],
+                                                       self.silence_threshold)
                     audio = audio.reshape(-1, 1)
                     if audio.size == 0:
                         print("Warning: {} was ignored as it contains only "
@@ -213,7 +224,7 @@ class AudioReader(object):
                     else:
                         if self.lc_ext_name is not None:
                             lc = lc[keep_indices[0]:keep_indices[-1], :]
-                        
+
                 audio = np.pad(audio, [[self.receptive_field, 0], [0, 0]],
                                'constant')
                 if self.lc_ext_name is not None:
@@ -223,7 +234,8 @@ class AudioReader(object):
                     temp
                     '''
                     lc_arr = np.asarray(lc)
-                    np.savetxt(filename+"_processed.csv", lc_arr, delimiter=",")
+                    np.savetxt(filename+"_processed.csv", lc_arr,
+                               delimiter=",")
                 # assert(lc.shape[0] == audio.shape[0] - receptive_field)
                 if self.sample_size:
                     # Cut samples into pieces of size receptive_field +
@@ -233,13 +245,13 @@ class AudioReader(object):
                                         self.sample_size), :]
                         if self.lc_ext_name is not None:
                             lc_piece = lc[:(self.receptive_field +
-                                        self.sample_size), :]
+                                          self.sample_size), :]
                         sess.run(self.enqueue,
                                  feed_dict={self.sample_placeholder: piece})
                         audio = audio[self.sample_size:, :]
                         if self.lc_ext_name is not None:
                             sess.run(self.lc_enqueue,
-                                 feed_dict={self.lc_placeholder: lc_piece})
+                                     feed_dict={self.lc_placeholder: lc_piece})
                             lc = lc[self.sample_size:, :]
                         if self.gc_enabled:
                             sess.run(self.gc_enqueue, feed_dict={
@@ -254,7 +266,6 @@ class AudioReader(object):
                     if self.lc_ext_name is not None:
                         sess.run(self.lc_enqueue,
                                  feed_dict={self.lc_placeholder: lc})
-                    
 
     def start_threads(self, sess, n_threads=1):
         for _ in range(n_threads):
