@@ -35,7 +35,7 @@ def randomize_files(files):
         yield files[file_index]
 
 
-def find_files(directory, pattern='*.wav'):
+def find_files(directory, pattern='*[0-9].wav'):
     '''Recursively finds all files matching the pattern.'''
     files = []
     for root, dirnames, filenames in os.walk(directory):
@@ -71,12 +71,14 @@ def load_generic_audio(directory, sample_rate, lc_ext_name):
             category_id = int(ids[0][0])
         audio, _ = librosa.load(filename, sr=sample_rate, mono=True)
         audio = audio.reshape(-1, 1)
-        lc_filename = copy.deepcopy(filename)
-        if lc_filename.endswith('.wav'):
-            lc_filename = lc_filename[:-4] + lc_ext_name
-        lc = pd.read_csv(lc_filename+'.csv', sep=',', header=None).values
-        # TODO: upsampling to make lc same number of rows as audio
-        lc = align_local_condition(lc, audio.shape[0])
+        lc = None
+        if lc_ext_name is not None:
+            lc_filename = copy.deepcopy(filename)
+            if lc_filename.endswith('.wav'):
+                lc_filename = lc_filename[:-4] + lc_ext_name
+            lc = pd.read_csv(lc_filename+'.csv', sep=',', header=None).values
+            # TODO: upsampling to make lc same number of rows as audio
+            lc = align_local_condition(lc, audio.shape[0])
         yield audio, filename, category_id, lc
 
 
@@ -228,15 +230,15 @@ class AudioReader(object):
                 audio = np.pad(audio, [[self.receptive_field, 0], [0, 0]],
                                'constant')
                 if self.lc_ext_name is not None:
-                    # lc = np.pad(lc, [[self.receptive_field, 0], [0, 0]],
-                    #            'constant')
+                    lc = np.pad(lc, [[self.receptive_field, 0], [0, 0]],
+                                'constant')
                     '''
                     temp
                     '''
                     lc_arr = np.asarray(lc)
                     np.savetxt(filename+"_processed.csv", lc_arr,
                                delimiter=",")
-                # assert(lc.shape[0] == audio.shape[0] - receptive_field)
+                # assert(lc.shape[0] == audio.shape[0])
                 if self.sample_size:
                     # Cut samples into pieces of size receptive_field +
                     # sample_size with receptive_field overlap
@@ -256,7 +258,6 @@ class AudioReader(object):
                         if self.gc_enabled:
                             sess.run(self.gc_enqueue, feed_dict={
                                 self.id_placeholder: category_id})
-                        print piece.shape, lc_piece.shape
                 else:
                     sess.run(self.enqueue,
                              feed_dict={self.sample_placeholder: audio})

@@ -209,6 +209,8 @@ def main():
         # Silence with a single random sample at the end.
         waveform = [quantization_channels / 2] * (net.receptive_field - 1)
         waveform.append(np.random.randint(quantization_channels))
+        if lc is not None:
+            waveform_lc = [[0] * args.lc_channels] * net.receptive_field
 
     if args.fast_generation and args.wav_seed:
         # When using the incremental generation, we need to
@@ -229,6 +231,8 @@ def main():
 
     last_sample_timestamp = datetime.now()
     for step in range(args.samples):
+        if args.lc_channels > 0:
+            waveform_lc.append(list(lc[i, :]))
         if args.fast_generation:
             outputs = [next_sample]
             outputs.extend(net.push_ops)
@@ -241,11 +245,11 @@ def main():
             if len(waveform) > net.receptive_field:
                 window = waveform[-net.receptive_field:]
                 if args.lc_channels > 0:
-                    lc_window = lc[-net.receptive_field:]
+                    lc_window = waveform_lc[-net.receptive_field:]
             else:
                 window = waveform
                 if args.lc_channels > 0:
-                    lc_window = lc
+                    lc_window = waveform_lc
             outputs = [next_sample]
         
         # Run the WaveNet to predict the next sample.

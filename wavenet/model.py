@@ -329,12 +329,11 @@ class WaveNetModel(object):
             #                           message="conv_lc_filter: ")
             conv_shape = tf.shape(conv_filter)[1]
             lc_shape = tf.shape(local_condition_batch)[1]
-            diff_len = conv_shape - lc_shape
+            diff_len = lc_shape - conv_shape
             # diff_len = tf.Print(diff_len, [diff_len], message="diff_len: ")
-            padded_conv_lc_filter = tf.pad(conv_lc_filter,
-                                           [[0, 0],
-                                            [diff_len, 0],
-                                            [0, 0]], "CONSTANT")
+            padded_conv_lc_filter = tf.slice(conv_lc_filter,
+                                             [0, diff_len, 0],
+                                             [-1, -1, -1])
             conv_filter = conv_filter + padded_conv_lc_filter
 
             weights_lc_gate = variables['lc_gateweights']
@@ -343,10 +342,9 @@ class WaveNetModel(object):
                                         stride=1,
                                         padding="SAME",
                                         name="lc_gate")
-            padded_conv_lc_gate = tf.pad(conv_lc_gate,
-                                         [[0, 0],
-                                          [diff_len, 0],
-                                          [0, 0]], "CONSTANT")
+            padded_conv_lc_gate = tf.slice(conv_lc_gate,
+                                           [0, diff_len, 0],
+                                           [-1, -1, -1])
             onv_gate = conv_gate + padded_conv_lc_gate
 
         if self.use_biases:

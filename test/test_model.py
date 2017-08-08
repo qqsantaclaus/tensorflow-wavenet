@@ -7,16 +7,18 @@ import random
 import os
 import math
 import itertools
+import matplotlib.pyplot as plt
+import librosa
 
 from wavenet import (WaveNetModel, time_to_batch, batch_to_time, causal_conv,
                      optimizer_factory, mu_law_decode)
 
 SAMPLE_RATE_HZ = 2000.0  # Hz
-TRAIN_ITERATIONS = 100
+TRAIN_ITERATIONS = 1000
 SAMPLE_DURATION = 0.5  # Seconds
 SAMPLE_PERIOD_SECS = 1.0 / SAMPLE_RATE_HZ
 MOMENTUM = 0.95
-GENERATE_SAMPLES = 1000
+GENERATE_SAMPLES = 2000
 QUANTIZATION_CHANNELS = 256
 NUM_SPEAKERS = 3
 F1 = 155.56  # E-flat frequency in hz
@@ -41,11 +43,11 @@ def make_sine_waves(global_conditioning):
         amplitudes[2, 0:LEADING_SILENCE] = 0.0
         start_time = LEADING_SILENCE / SAMPLE_RATE_HZ
         times = times[LEADING_SILENCE:] - start_time
-        amplitudes[0, LEADING_SILENCE:] = 1.0 * np.sin(times *
+        amplitudes[0, LEADING_SILENCE:] = 0.6 * np.sin(times *
                                                        2.0 * np.pi * F1)
-        amplitudes[1, LEADING_SILENCE:] = 1.0 * np.sin(times *
+        amplitudes[1, LEADING_SILENCE:] = 0.5 * np.sin(times *
                                                        2.0 * np.pi * F2)
-        amplitudes[2, LEADING_SILENCE:] = 1.0 * np.sin(times *
+        amplitudes[2, LEADING_SILENCE:] = 0.4 * np.sin(times *
                                                        2.0 * np.pi * F3)
         speaker_ids = np.zeros((NUM_SPEAKERS, 1), dtype=np.int)
         speaker_ids[0, 0] = 0
@@ -66,18 +68,17 @@ def make_mixed_sine_waves():
        Speakers is of size times * NUM_SPEAKERS, a time series
        of one-hot encoding of speaker id"""
     sample_period = 1.0/SAMPLE_RATE_HZ
-    times = np.arange(0.0, SAMPLE_DURATION, sample_period)
+    times = np.arange(0.0, SAMPLE_DURATION * 3.0, sample_period)
 
     permutations = list(itertools.permutations(range(NUM_SPEAKERS)))
     amplitudes = np.zeros(shape=(len(permutations), len(times)))
     speaker_ids = np.zeros(shape=(len(permutations),
                                   len(times),
-                                  NUM_SPEAKERS), dtype=np.int)
+                                  NUM_SPEAKERS), dtype=np.float32)
     frequency_lst = [F1, F2, F3]
     for index in range(len(permutations)):
         order = permutations[index]
-        # LEADING_SILENCE = random.randint(10, 128)
-        LEADING_SILENCE = 0
+        LEADING_SILENCE = random.randint(10, 128)
         piece_len = int((len(times) - LEADING_SILENCE)/NUM_SPEAKERS)
         amplitudes[index, :-NUM_SPEAKERS*piece_len] = 0.0
         start_time = (len(times)-NUM_SPEAKERS*piece_len) / SAMPLE_RATE_HZ
@@ -106,8 +107,8 @@ def make_mixed_sine_waves():
 def generate_waveform(sess, net, fast_generation, gc, samples_placeholder,
                       gc_placeholder, operations, lc, lc_placeholder):
     waveform = [128] * net.receptive_field
-    # if lc is not None:
-    #     waveform_lc = [[0] * lc.shape[1]] * net.receptive_field
+    if lc is not None:
+        waveform_lc = [[0] * lc.shape[1]] * net.receptive_field
 
     if fast_generation:
         for sample in waveform[:-1]:
@@ -117,19 +118,27 @@ def generate_waveform(sess, net, fast_generation, gc, samples_placeholder,
         if i % 100 == 0:
             print("Generating {} of {}.".format(i, GENERATE_SAMPLES))
         sys.stdout.flush()
+        if lc is not None:
+            waveform_lc.append(list(lc[i, :]))
         if fast_generation:
             window = waveform[-1]
+            if lc is not None:
+                window_lc = waveform_lc[-1]
         else:
             if len(waveform) > net.receptive_field:
                 window = waveform[-net.receptive_field:]
+                if lc is not None:
+                    window_lc = waveform_lc[-net.receptive_field:]
             else:
                 window = waveform
+                if lc is not None:
+                    window_lc = waveform_lc
         # Run the WaveNet to predict the next sample.
         feed_dict = {samples_placeholder: window}
         if gc is not None:
             feed_dict[gc_placeholder] = gc
         if lc is not None:
-            feed_dict[lc_placeholder] = lc[i, :]
+            feed_dict[lc_placeholder] = window_lc
         results = sess.run(operations, feed_dict=feed_dict)
 
         sample = np.random.choice(
@@ -199,9 +208,11 @@ def find_nearest(freqs, power_spectrum, frequency):
 
 
 def check_waveform(assertion, generated_waveform, gc_category):
-    # librosa.output.write_wav('/tmp/sine_test{}.wav'.format(gc_category),
-    #                          generated_waveform,
-    #                          SAMPLE_RATE_HZ)
+    if not os.path.exists("./tmp"):
+        os.makedirs("./tmp")
+    librosa.output.write_wav('./tmp/sine_test{}.wav'.format(gc_category),
+                             generated_waveform,
+                             SAMPLE_RATE_HZ)
     power_spectrum = np.abs(np.fft.fft(generated_waveform))**2
     freqs = np.fft.fftfreq(generated_waveform.size, SAMPLE_PERIOD_SECS)
     indices = np.argsort(freqs)
@@ -219,8 +230,7 @@ def check_waveform(assertion, generated_waveform, gc_category):
         # We are not globally conditioning to select one of the three sine
         # waves, so expect it across all three.
         expected_power = f1_power + f2_power + f3_power
-        print (f1_power, f2_power, f3_power, expected_power, 0.7 * power_sum)
-        # assertion(expected_power, 0.7 * power_sum)
+        assertion(expected_power, 0.7 * power_sum)
     else:
         # We expect spectral power at the selected frequency
         # corresponding to the gc_category to be much higher than at the other
@@ -234,7 +244,8 @@ def check_waveform(assertion, generated_waveform, gc_category):
         # than at other frequences.
         # This is a weak criterion, but still detects implementation errors
         # in the code.
-        print (gc_category, expected_power, 10.0*other_freqs_lut[gc_category])
+        print gc_category, expected_power, power_sum, \
+            10.0*other_freqs_lut[gc_category]
         # assertion(expected_power, 10.0*other_freqs_lut[gc_category])
 
 
@@ -291,16 +302,14 @@ class TestNet(tf.test.TestCase):
 
         np.random.seed(42)
         if self.local_conditioning:
-            # audio, speaker_ids = make_mixed_sine_waves()
-            audio, produced_ids = make_sine_waves(True)
-            for i in range(3):
-                check_waveform(self.assertGreater, audio[i, :], i)
-            speaker_ids = np.zeros(shape=(NUM_SPEAKERS,
-                                          audio.shape[1],
-                                          NUM_SPEAKERS))
-            speaker_ids[0, :, 0] = 1
-            speaker_ids[1, :, 1] = 1
-            speaker_ids[2, :, 2] = 1
+            audio, speaker_ids = make_mixed_sine_waves()
+            # audio, produced_ids = make_sine_waves(True)
+            # speaker_ids = np.zeros(shape=(NUM_SPEAKERS,
+            #                               audio.shape[1],
+            #                               NUM_SPEAKERS))
+            # speaker_ids[0, :, 0] = 1
+            # speaker_ids[1, :, 1] = 1
+            # speaker_ids[2, :, 2] = 1
         else:
             audio, speaker_ids = make_sine_waves(self.global_conditioning)
         # Pad with 0s (silence) times size of the receptive field minus one,
@@ -313,9 +322,13 @@ class TestNet(tf.test.TestCase):
                            'constant')
         elif self.local_conditioning:
             # print "here"
-            audio = np.pad(audio, ((0, 0),
-                           (self.net.receptive_field - 1, 0)),
+            audio = np.pad(audio, ((0, 0), (self.net.receptive_field - 1, 0)),
                            'constant')
+            speaker_ids = np.pad(speaker_ids,
+                                 ((0, 0),
+                                  (self.net.receptive_field - 1, 0),
+                                  (0, 0)),
+                                 'constant')
         else:
             audio = np.pad(audio, (self.net.receptive_field - 1, 0),
                            'constant')
@@ -383,6 +396,7 @@ class TestNet(tf.test.TestCase):
                     #     check_waveform( self.assertGreater, waveform, id[0])
                 elif self.local_conditioning:
                     # TODO
+                    ids = range(NUM_SPEAKERS)
                     new_speaker_ids = np.zeros(shape=(NUM_SPEAKERS,
                                                       GENERATE_SAMPLES,
                                                       NUM_SPEAKERS))
@@ -392,11 +406,16 @@ class TestNet(tf.test.TestCase):
                     # Check non-fast-generated waveform.
                     generated_waveforms, _, _ = generate_waveforms(
                         sess, self.net, False, None, new_speaker_ids)
-                    ids = range(NUM_SPEAKERS)
                     for (waveform, id) in zip(generated_waveforms, ids):
                         print np.mean(waveform)
                         check_waveform(self.assertGreater, waveform, id)
-                        check_waveform(self.assertGreater, waveform, None)
+                    # Check fast-generated wveform.
+                    # TODO: fast-generated wv with lc is not implemented
+                    # generated_waveforms, _, _ = generate_waveforms(
+                    #     sess, self.net, True, None, new_speaker_ids)
+                    # for (waveform, id) in zip(generated_waveforms, ids):
+                    #     print("Checking fast wf for id{}".format(id))
+                    #     check_waveform(self.assertGreater, waveform, id)
                 else:
                     # Check non-incremental generation
                     generated_waveforms, _, _ = generate_waveforms(
@@ -526,9 +545,13 @@ class TestNetWithLocalConditioning(TestNet):
         self.global_conditioning = False
         self.local_conditioning = True
         self.train_iters = 1000
-        self.net = WaveNetModel(batch_size=(NUM_SPEAKERS),
+        self.net = WaveNetModel(batch_size=math.factorial(NUM_SPEAKERS),
                                 dilations=[1, 2, 4, 8, 16, 32, 64,
-                                           1, 2, 4, 8, 16, 32, 64],
+                                           128, 256, 512,
+                                           1, 2, 4, 8, 16, 32, 64,
+                                           128, 256, 512,
+                                           1, 2, 4, 8, 16, 32, 64,
+                                           128, 256, 512],
                                 filter_width=2,
                                 residual_channels=32,
                                 dilation_channels=32,
