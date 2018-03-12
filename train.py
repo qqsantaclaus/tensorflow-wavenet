@@ -35,6 +35,8 @@ MOMENTUM = 0.9
 MAX_TO_KEEP = 5
 METADATA = False
 
+os.environ["CUDA_VISIBLE_DEVICES"]=1
+
 
 def get_arguments():
     def _str_to_bool(s):
