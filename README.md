@@ -103,9 +103,11 @@ size of the embedding vector that is looked up based on the id of the speaker.
 The global conditioning logic in train.py and audio_reader.py is "hard-wired" to the VCTK corpus at the moment in that it expects to be able to determine the speaker id from the pattern of file naming used in VCTK, but can be easily be modified.
 
 ## Training with Local Conditioning
-If use local condition, each wav file should be accompanied by a csv file of name format "wave name(+)ext name.csv" with rows being time series and columns being numerical local conditions (no header). Ext name part is provided by input argument. It is assumed that the time series is of equal timestep and covers the same time span as wav and can be less frequent than wav. Default use_lc is False. Default lc_ext_name is "".
+If use local condition, lc_channels should be specified with a non-zero value and lc_maps_json should be specified with a json filename; each wav file should be accompanied by a csv file with rows being time series and columns being numerical local conditions (no header). lc_map_json specifies the key-value pair (wav filename, local condition filename) in json format; the paths in lc_map_json should all be relative to data_dir. 
+
+It is assumed that the time series of local conditions is of equal timestep and covers the same time span as wav and can be less frequent than wav.
 ```
---use_lc=True --lc_ext_name="xxxx"
+--lc_channels=20 --lc_maps_json="maps.json"
 ```
 
 ## Generating audio

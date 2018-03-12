@@ -9,6 +9,7 @@ import librosa
 import numpy as np
 import tensorflow as tf
 import pandas as pd
+import json
 
 FILE_PATTERN = r'p([0-9]+)_([0-9]+)\.wav'
 
@@ -23,7 +24,6 @@ def find_files(directory, pattern='*.wav'):
     return files
 
 def generate_mfcc(directory, sample_rate, lc_ext_name=".csv"):
-    '''Generator that yields audio waveforms from the directory.'''
     files = find_files(directory)
     print("files length: {}".format(len(files)))
     for filename in files:
@@ -43,5 +43,18 @@ def generate_mfcc(directory, sample_rate, lc_ext_name=".csv"):
                     raise
         df.to_csv(lc_filename, sep=',', header=None) 
 
+def generate_lc_map(directory):
+    files = find_files(directory)
+    print("files length: {}".format(len(files)))
+    lookup = {}
+    for filename in files:
+        p_filename = filename.split(directory)[-1]
+        print filename, p_filename
+        p_lc_filename = p_filename.replace("wav48", "mfcc").replace(".wav", ".csv")
+        lookup[p_filename] = p_lc_filename
+    with open(directory+"/maps.json", "w") as output:
+        json.dump(lookup, output)
+
+
 if __name__=="__main__":
-    generate_mfcc("../VCTK-Corpus", 48000)
+    generate_lc_map("../VCTK-Corpus")
