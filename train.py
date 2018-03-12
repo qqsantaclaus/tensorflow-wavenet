@@ -105,8 +105,9 @@ def get_arguments():
                              + str(MAX_TO_KEEP) + '.')
     parser.add_argument('--lc_channels', type=int, default=0,
                         help='Number of local condition channels. Default: 0')
-    parser.add_argument('--lc_ext_name', type=str, default=None,
-                        help='The extended name part for local condition csv files. Default: None')                    
+    parser.add_argument('--lc_maps_json', type=str, default=None,
+                        help='The json file that specifies key value pair (wav filename, local condition csv filename),\
+                              where all the paths inside are relative to data_dir. Default: None')                    
     return parser.parse_args()
 
 
@@ -151,6 +152,9 @@ def get_default_logdir(logdir_root):
 def validate_directories(args):
     """Validate and arrange directory related arguments."""
 
+    if args.lc_channels > 0 and not args.lc_maps_json:        
+        raise ValueError("--lc_channels and --lc_maps_json must be specified at the same time.")
+
     # Validation
     if args.logdir and args.logdir_root:
         raise ValueError("--logdir and --logdir_root cannot be "
@@ -192,11 +196,6 @@ def validate_directories(args):
 def main():
     args = get_arguments()
 
-    if args.lc_channels > 0:
-        lc_ext_name = ''
-    else:
-        lc_ext_name = None
-
     try:
         directories = validate_directories(args)
     except ValueError as e:
@@ -235,7 +234,7 @@ def main():
                                                                    wavenet_params["initial_filter_width"]),
             sample_size=args.sample_size,
             silence_threshold = silence_threshold,
-            lc_ext_name = lc_ext_name)
+            lc_maps_json = args.lc_maps_json)
         audio_batch = reader.dequeue(args.batch_size)
 
         if gc_enabled:
@@ -245,10 +244,8 @@ def main():
 
         if args.lc_channels > 0:
             lc_batch = reader.dequeue_lc(args.batch_size)
-            local_condition_channels = lc_batch.shape[2]
         else:
             lc_batch = None
-            local_condition_channels = None
 
     # Create network.
     net = WaveNetModel(
@@ -392,7 +389,7 @@ def test_reader():
                                                                     wavenet_params["initial_filter_width"]),
             sample_size=args.sample_size,
             silence_threshold=silence_threshold, 
-            lc_ext_name='')
+            lc_maps_json=args.lc_maps_json)
             
         audio_batch = reader.dequeue(args.batch_size)
         if gc_enabled:

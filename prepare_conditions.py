@@ -41,7 +41,7 @@ def generate_mfcc(directory, sample_rate, lc_ext_name=".csv"):
             except OSError as exc: # Guard against race condition
                 if exc.errno != errno.EEXIST:
                     raise
-        df.to_csv(lc_filename, sep=',', header=None) 
+        df.to_csv(lc_filename, sep=',', header=None, index=None) 
 
 def generate_lc_map(directory):
     files = find_files(directory)
@@ -57,4 +57,4 @@ def generate_lc_map(directory):
 
 
 if __name__=="__main__":
-    generate_lc_map("../VCTK-Corpus")
+    generate_mfcc("../VCTK-Corpus", 48000)
