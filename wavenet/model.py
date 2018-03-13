@@ -439,10 +439,6 @@ class WaveNetModel(object):
             weights_lc_gate = variables['lc_gateweights']
             weights_lc_gate = weights_lc_gate[0, :, :]
             print(weights_lc_filter)
-            # padded_local_condition_batch = tf.pad(local_condition_batch,
-            #                     [[tf.shape(output_filter)[1]-
-            #                       tf.shape(local_condition_batch)[1], 0],
-            #                      [0, 0]])
             output_filter += tf.matmul(local_condition_batch,
                                        weights_lc_filter)
             output_gate += tf.matmul(local_condition_batch,

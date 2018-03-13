@@ -149,7 +149,9 @@ def main():
         if args.lc_path is not None:
             lc = pd.read_csv(args.lc_path, sep=',',header=None).values
         else:
-            lc = np.zeros(shape=(1, args.lc_channels))
+            print (
+                ValueError('Location condition is enabled,' 
+                           'and a local condition file must be provided.'))
         lc = audio_reader.align_local_condition(lc, args.samples)
         lc_placeholder = tf.placeholder(tf.float32)
     else:
@@ -235,17 +237,17 @@ def main():
             window = waveform[-1]
             print(window)
             if args.lc_channels > 0:
-                lc_window = np.reshape(lc[-1], (1, -1))
-                print(lc_window)
+                lc_window = np.reshape(lc[step], (1, -1))
+                print(lc_window.shape)
         else:
             if len(waveform) > net.receptive_field:
                 window = waveform[-net.receptive_field:]
                 if args.lc_channels > 0:
-                    lc_window = lc[-net.receptive_field:]
+                    lc_window = np.reshape(lc[step], (1, -1))
             else:
                 window = waveform
                 if args.lc_channels > 0:
-                    lc_window = lc
+                    lc_window = np.reshape(lc[step], (1, -1))
             outputs = [next_sample]
         
         # Run the WaveNet to predict the next sample.
