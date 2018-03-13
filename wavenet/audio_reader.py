@@ -209,6 +209,7 @@ class AudioReader(object):
             iterator = load_generic_audio(self.audio_dir, self.sample_rate,
                                           self.lc_maps)
             for audio, filename, category_id, lc in iterator:
+                print filename
                 if self.coord.should_stop():
                     stop = True
                     break
@@ -247,8 +248,7 @@ class AudioReader(object):
                         piece = audio[:(self.receptive_field +
                                         self.sample_size), :]
                         if self.lc_maps is not None:
-                            lc_piece = lc[:(self.receptive_field +
-                                          self.sample_size), :]
+                            lc_piece = lc[:(self.sample_size), :]
                         sess.run(self.enqueue,
                                  feed_dict={self.sample_placeholder: piece})
                         audio = audio[self.sample_size:, :]
