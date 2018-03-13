@@ -235,10 +235,8 @@ def main():
             outputs = [next_sample]
             outputs.extend(net.push_ops)
             window = waveform[-1]
-            print(window)
             if args.lc_channels > 0:
                 lc_window = np.reshape(lc[step], (1, -1))
-                print(lc_window.shape)
         else:
             if len(waveform) > net.receptive_field:
                 window = waveform[-net.receptive_field:]
