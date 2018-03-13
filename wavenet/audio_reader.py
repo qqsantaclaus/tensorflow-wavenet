@@ -12,7 +12,8 @@ import pandas as pd
 import ops
 import json
 
-FILE_PATTERN = r'p([0-9]+)_([0-9]+)\.wav'
+# For training only
+FILE_PATTERN = r'p([0-9]+)_([0-2][0-9]+)\.wav'
 
 
 def get_category_cardinality(files):
@@ -36,7 +37,7 @@ def randomize_files(files):
         yield files[file_index]
 
 
-def find_files(directory, pattern='*.wav'):
+def find_files(directory, pattern=FILE_PATTERN):
     '''Recursively finds all files matching the pattern.'''
     files = []
     for root, dirnames, filenames in os.walk(directory):
