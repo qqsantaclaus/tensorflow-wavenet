@@ -57,4 +57,4 @@ def generate_lc_map(directory):
 
 
 if __name__=="__main__":
-    generate_mfcc("../VCTK-Corpus", 48000)
+    generate_mfcc("../VCTK-Corpus", 16000)

@@ -377,11 +377,11 @@ class WaveNetModel(object):
             tf.summary.histogram(layer + '_dense', weights_dense)
             tf.summary.histogram(layer + '_skip', weights_skip)
             if global_condition_batch is not None:
-                tf.histogram_summary(layer + '_gc_filter', weights_gc_filter)
-                tf.histogram_summary(layer + '_gc_gate', weights_gc_gate)
+                tf.summary.histogram(layer + '_gc_filter', weights_gc_filter)
+                tf.summary.histogram(layer + '_gc_gate', weights_gc_gate)
             if local_condition_batch is not None:
-                tf.histogram_summary(layer + '_lc_filter', weights_lc_filter)
-                tf.histogram_summary(layer + '_lc_gate', weights_lc_gate)
+                tf.summary.histogram(layer + '_lc_filter', weights_lc_filter)
+                tf.summary.histogram(layer + '_lc_gate', weights_lc_gate)
             if self.use_biases:
                 tf.summary.histogram(layer + '_biases_filter', filter_bias)
                 tf.summary.histogram(layer + '_biases_gate', gate_bias)
