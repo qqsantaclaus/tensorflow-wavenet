@@ -17,7 +17,7 @@ SAMPLES = 16000
 TEMPERATURE = 1.0
 LOGDIR = './logdir'
 WAVENET_PARAMS = './wavenet_params.json'
-SAVE_EVERY = None
+SAVE_EVERY = 16000
 SILENCE_THRESHOLD = 0.1
 
 
