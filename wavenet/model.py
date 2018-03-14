@@ -736,6 +736,24 @@ class WaveNetModel(object):
                         [self.batch_size, -1, self.quantization_channels]),
                     [0, self.receptive_field, 0],
                     [-1, -1, -1])
+
+                # Log posterior distribution
+                tf.summary.image(
+                    "Posterior Distribution",
+                    tf.reshape(
+                        raw_output, 
+                        [self.batch_size, -1, self.quantization_channels, 1]),
+                    max_outputs=1
+                )
+                # Log ground truth
+                tf.summary.image(
+                    "Truth",
+                    tf.reshape(
+                        target_output, 
+                        [self.batch_size, -1, self.quantization_channels, 1]),
+                    max_outputs=1
+                )
+
                 target_output = tf.reshape(target_output,
                                            [-1, self.quantization_channels])
                 prediction = tf.reshape(raw_output,
