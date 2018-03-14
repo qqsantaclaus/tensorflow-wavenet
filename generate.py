@@ -241,11 +241,11 @@ def main():
             if len(waveform) > net.receptive_field:
                 window = waveform[-net.receptive_field:]
                 if args.lc_channels > 0:
-                    lc_window = np.reshape(lc[step], (1, -1))
+                    lc_window = np.reshape(lc[step], (1, 1, -1))
             else:
                 window = waveform
                 if args.lc_channels > 0:
-                    lc_window = np.reshape(lc[step], (1, -1))
+                    lc_window = np.reshape(lc[step], (1, 1, -1))
             outputs = [next_sample]
         
         # Run the WaveNet to predict the next sample.
