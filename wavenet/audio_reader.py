@@ -115,7 +115,7 @@ def not_all_have_lc(directory, files, lc_maps):
         by csv file specifying local conditions.
     '''
     for file in files:
-        lc_filename = directory+lc_maps[file.replace(directory, "")]
+        lc_filename = os.path.join(directory, lc_maps[file.replace(directory, "")])
         if not os.path.isfile(lc_filename):
             return True
     return False
