@@ -78,7 +78,7 @@ def load_generic_audio(directory, sample_rate, lc_maps):
         audio = audio.reshape(-1, 1)
 
         if lc_maps:
-            lc_filename = path = os.path.join(directory, lc_maps[filename.replace(directory, "")])
+            lc_filename = os.path.realpath(os.path.join(directory, lc_maps[filename.replace(directory, "")]))
             lc = pd.read_csv(lc_filename, sep=',', header=None).values
             # TODO: upsampling to make lc same number of rows as audio
             lc = align_local_condition(lc, audio.shape[0])
@@ -115,7 +115,7 @@ def not_all_have_lc(directory, files, lc_maps):
         by csv file specifying local conditions.
     '''
     for file in files:
-        lc_filename = os.path.join(directory, lc_maps[file.replace(directory, "")])
+        lc_filename = os.path.realpath(os.path.join(directory, lc_maps[file.replace(directory, "")]))
         if not os.path.isfile(lc_filename):
             return True
     return False
