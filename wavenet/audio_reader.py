@@ -13,8 +13,8 @@ import ops
 import json
 
 # For training only
-FILE_PATTERN = r'p([0-9]+)_([0-2][0-9]+)\.wav'
-
+FILE_PATTERN = r'p([0-9]+)_([0-9]+)\.wav'
+TRAINING_RANGE = 300
 
 def get_category_cardinality(files):
     id_reg_exp = re.compile(FILE_PATTERN)
@@ -37,7 +37,7 @@ def randomize_files(files):
         yield files[file_index]
 
 
-def find_files(directory, pattern=FILE_PATTERN):
+def find_files(directory, pattern="*.wav"):
     '''Recursively finds all files matching the pattern.'''
     files = []
     for root, dirnames, filenames in os.walk(directory):
@@ -71,12 +71,19 @@ def load_generic_audio(directory, sample_rate, lc_maps):
         else:
             # The file name matches the pattern for containing ids.
             category_id = int(ids[0][0])
+            if int(ids[0][1]) >= TRAINING_RANGE:
+                continue
+        print filename
         audio, _ = librosa.load(filename, sr=sample_rate, mono=True)
         audio = audio.reshape(-1, 1)
-        lc_filename = directory+lc_maps[filename.replace(directory, "")]
-        lc = pd.read_csv(lc_filename, sep=',', header=None).values
-        # TODO: upsampling to make lc same number of rows as audio
-        lc = align_local_condition(lc, audio.shape[0])
+
+        if lc_maps:
+            lc_filename = directory+lc_maps[filename.replace(directory, "")]
+            lc = pd.read_csv(lc_filename, sep=',', header=None).values
+            # TODO: upsampling to make lc same number of rows as audio
+            lc = align_local_condition(lc, audio.shape[0])
+        else:
+            lc = None
         yield audio, filename, category_id, lc
 
 def trim_silence(audio, threshold, frame_length=2048):
@@ -148,6 +155,7 @@ class AudioReader(object):
                                                 shapes=[()])
             self.gc_enqueue = self.gc_queue.enqueue([self.id_placeholder])
 
+        self.lc_maps = None
         if lc_maps_json is not None:
             try:
                 with open(lc_maps_json, "r") as inputfile:
@@ -260,7 +268,6 @@ class AudioReader(object):
                         if self.gc_enabled:
                             sess.run(self.gc_enqueue, feed_dict={
                                 self.id_placeholder: category_id})
-                        print piece.shape, lc_piece.shape
                 else:
                     sess.run(self.enqueue,
                              feed_dict={self.sample_placeholder: audio})
