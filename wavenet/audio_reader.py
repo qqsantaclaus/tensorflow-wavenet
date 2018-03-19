@@ -78,7 +78,7 @@ def load_generic_audio(directory, sample_rate, lc_maps):
         audio = audio.reshape(-1, 1)
 
         if lc_maps:
-            lc_filename = directory+lc_maps[filename.replace(directory, "")]
+            lc_filename = path = os.path.join(directory, lc_maps[filename.replace(directory, "")])
             lc = pd.read_csv(lc_filename, sep=',', header=None).values
             # TODO: upsampling to make lc same number of rows as audio
             lc = align_local_condition(lc, audio.shape[0])
