@@ -293,6 +293,9 @@ class WaveNetModel(object):
         weights_gate = variables['gate']
 
         conv_filter = causal_conv(input_batch, weights_filter, dilation)
+        # conv_filter = tf.Print(conv_filter,
+        #                        [weights_filter],
+        #                        message="conv_filter: ")
         conv_gate = causal_conv(input_batch, weights_gate, dilation)
 
         if global_condition_batch is not None:
@@ -308,41 +311,41 @@ class WaveNetModel(object):
                                                  stride=1,
                                                  padding="SAME",
                                                  name="gc_gate")
-            weights_gc_filter = variables['gc_filtweights']
-            conv_filter = conv_filter + tf.nn.conv1d(global_condition_batch,
-                                                     weights_gc_filter,
-                                                     stride=1,
-                                                     padding="SAME",
-                                                     name="gc_filter")
-            weights_gc_gate = variables['gc_gateweights']
-            conv_gate = conv_gate + tf.nn.conv1d(global_condition_batch,
-                                                 weights_gc_gate,
-                                                 stride=1,
-                                                 padding="SAME",
-                                                 name="gc_gate")
 
         if local_condition_batch is not None:
             weights_lc_filter = variables['lc_filtweights']
+            # weights_lc_filter = tf.Print(weights_lc_filter,
+            #                              [tf.shape(local_condition_batch),
+            #                               tf.shape(weights_lc_filter)],
+            #                              message="weights_lc_filter: ")
+            conv_lc_filter = tf.nn.conv1d(local_condition_batch,
+                                          weights_lc_filter,
+                                          stride=1,
+                                          padding="SAME",
+                                          name="lc_filter")
+            # conv_lc_filter = tf.Print(conv_lc_filter,
+            #                           [tf.shape(conv_lc_filter),
+            #                            conv_lc_filter],
+            #                           message="conv_lc_filter: ")
             conv_shape = tf.shape(conv_filter)[1]
             lc_shape = tf.shape(local_condition_batch)[1]
-            diff_len = conv_shape - lc_shape
-            padded_local_condition_batch = tf.pad(local_condition_batch,
-                                                  [[0, 0],
-                                                   [diff_len, 0],
-                                                   [0, 0]])
-            temp1 = tf.nn.conv1d(padded_local_condition_batch,
-                                 weights_lc_filter,
-                                 stride=1,
-                                 padding="SAME",
-                                 name="lc_filter")
-            conv_filter = conv_filter + temp1
+            diff_len = lc_shape - conv_shape
+            # diff_len = tf.Print(diff_len, [diff_len], message="diff_len: ")
+            padded_conv_lc_filter = tf.slice(conv_lc_filter,
+                                             [0, diff_len, 0],
+                                             [-1, -1, -1])
+            conv_filter = conv_filter + padded_conv_lc_filter
+
             weights_lc_gate = variables['lc_gateweights']
-            temp2 = tf.nn.conv1d(padded_local_condition_batch,
-                                 weights_lc_gate,
-                                 stride=1,
-                                 padding="SAME",
-                                 name="lc_gate")
-            onv_gate = conv_gate + temp2
+            conv_lc_gate = tf.nn.conv1d(local_condition_batch,
+                                        weights_lc_gate,
+                                        stride=1,
+                                        padding="SAME",
+                                        name="lc_gate")
+            padded_conv_lc_gate = tf.slice(conv_lc_gate,
+                                           [0, diff_len, 0],
+                                           [-1, -1, -1])
+            onv_gate = conv_gate + padded_conv_lc_gate
 
         if self.use_biases:
             filter_bias = variables['filter_bias']
@@ -438,7 +441,6 @@ class WaveNetModel(object):
             weights_lc_filter = weights_lc_filter[0, :, :]
             weights_lc_gate = variables['lc_gateweights']
             weights_lc_gate = weights_lc_gate[0, :, :]
-            print(weights_lc_filter)
             output_filter += tf.matmul(local_condition_batch,
                                        weights_lc_filter)
             output_gate += tf.matmul(local_condition_batch,
@@ -653,12 +655,23 @@ class WaveNetModel(object):
             if self.scalar_input:
                 encoded = tf.cast(waveform, tf.float32)
                 encoded = tf.reshape(encoded, [-1, 1])
+                lc_reshaped = None
+                if local_condition is not None:
+                    lc_reshaped = tf.reshape(local_condition,
+                                             [-1,
+                                              self.local_condition_channels])
             else:
                 encoded = self._one_hot(waveform)
+                lc_reshaped = None
+                if local_condition is not None:
+                    lc_reshaped = tf.reshape(local_condition,
+                                             [self.batch_size,
+                                              -1,
+                                              self.local_condition_channels])
 
             gc_embedding = self._embed_gc(global_condition)
             raw_output = self._create_network(encoded, gc_embedding,
-                                              local_condition)
+                                              lc_reshaped)
             out = tf.reshape(raw_output, [-1, self.quantization_channels])
             # Cast to float64 to avoid bug in TensorFlow
             proba = tf.cast(
@@ -683,9 +696,13 @@ class WaveNetModel(object):
         with tf.name_scope(name):
             encoded = tf.one_hot(waveform, self.quantization_channels)
             encoded = tf.reshape(encoded, [-1, self.quantization_channels])
+            lc_reshaped = None
+            if local_condition is not None:
+                lc_reshaped = tf.reshape(local_condition,
+                                         [-1, self.local_condition_channels])
             gc_embedding = self._embed_gc(global_condition)
             raw_output = self._create_generator(encoded, gc_embedding,
-                                                local_condition)
+                                                lc_reshaped)
             out = tf.reshape(raw_output, [-1, self.quantization_channels])
             proba = tf.cast(
                 tf.nn.softmax(tf.cast(out, tf.float64)), tf.float32)
@@ -709,9 +726,15 @@ class WaveNetModel(object):
             # We mu-law encode and quantize the input audioform.
             encoded_input = mu_law_encode(input_batch,
                                           self.quantization_channels)
+            # encoded_input = tf.Print(encoded_input,
+            #                          [tf.shape(encoded_input)],
+            #                          message="encoded_input:")
 
             gc_embedding = self._embed_gc(global_condition_batch)
             encoded = self._one_hot(encoded_input)
+            encoded_input = tf.Print(encoded_input,
+                                     [tf.shape(encoded_input)],
+                                     message="encoded_input:")
             if self.scalar_input:
                 network_input = tf.reshape(
                     tf.cast(input_batch, tf.float32),
@@ -723,7 +746,13 @@ class WaveNetModel(object):
             network_input_width = tf.shape(network_input)[1] - 1
             network_input = tf.slice(network_input, [0, 0, 0],
                                      [-1, network_input_width, -1])
-
+            if local_condition_batch is not None:
+                local_condition_batch = tf.slice(
+                    local_condition_batch,
+                    [0, 1, 0],
+                    [-1,
+                     -1,
+                     -1])
             raw_output = self._create_network(network_input, gc_embedding,
                                               local_condition_batch)
 

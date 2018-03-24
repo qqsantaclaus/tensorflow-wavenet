@@ -285,7 +285,9 @@ def main():
     summaries = tf.summary.merge_all()
 
     # Set up session
-    sess = tf.Session(config=tf.ConfigProto(log_device_placement=False))
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    sess = tf.Session(config=config)
     init = tf.global_variables_initializer()
     sess.run(init)
 

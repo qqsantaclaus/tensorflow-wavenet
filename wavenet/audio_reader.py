@@ -76,7 +76,6 @@ def load_generic_audio(directory, sample_rate, lc_maps):
         print filename
         audio, _ = librosa.load(filename, sr=sample_rate, mono=True)
         audio = audio.reshape(-1, 1)
-
         if lc_maps:
             lc_filename = os.path.realpath(os.path.join(directory, lc_maps[filename.replace(directory, "")]))
             lc = pd.read_csv(lc_filename, sep=',', header=None).values
@@ -239,17 +238,15 @@ class AudioReader(object):
                 audio = np.pad(audio, [[self.receptive_field, 0], [0, 0]],
                                'constant')
                 
-                # if self.lc_maps is not None:
-                #     # lc = np.pad(lc, [[self.receptive_field, 0], [0, 0]],
-                #     #            'constant')
-                #     '''
-                #     temp
-                #     '''
-                #     lc_arr = np.asarray(lc)
-                #     np.savetxt(filename+"_processed.csv", lc_arr,
-                #                delimiter=",")
+                if self.lc_maps is not None:
+                    lc = np.pad(lc, [[self.receptive_field, 0], [0, 0]],
+                               'constant')
+                    # lc_arr = np.asarray(lc)
+                    # np.savetxt(filename+"_processed.csv", lc_arr,
+                               delimiter=",")
 
-                # assert(lc.shape[0] == audio.shape[0] - receptive_field)
+                assert(lc.shape[0] == audio.shape[0])
+
                 if self.sample_size:
                     # Cut samples into pieces of size receptive_field +
                     # sample_size with receptive_field overlap

@@ -219,6 +219,9 @@ def main():
         waveform = [quantization_channels / 2] * (net.receptive_field - 1)
         waveform.append(np.random.randint(quantization_channels))
     
+    if lc is not None:
+        waveform_lc = [[0] * args.lc_channels] * net.receptive_field
+    
     probs = []
 
     if args.fast_generation and args.wav_seed:
@@ -240,6 +243,8 @@ def main():
 
     last_sample_timestamp = datetime.now()
     for step in range(args.samples):
+        if args.lc_channels > 0:
+            waveform_lc.append(list(lc[step, :]))
         if args.fast_generation:
             outputs = [next_sample]
             outputs.extend(net.push_ops)
@@ -250,11 +255,12 @@ def main():
             if len(waveform) > net.receptive_field:
                 window = waveform[-net.receptive_field:]
                 if args.lc_channels > 0:
-                    lc_window = np.reshape(lc[step], (1, 1, -1))
+                    lc_window = np.reshape(waveform_lc[-net.receptive_field:], 
+                                           (1, -1, args.lc_channels))
             else:
                 window = waveform
                 if args.lc_channels > 0:
-                    lc_window = np.reshape(lc[step], (1, 1, -1))
+                    lc_window = np.reshape(waveform_lc, (1, -1, args.lc_channels))
             outputs = [next_sample]
         
         # Run the WaveNet to predict the next sample.
