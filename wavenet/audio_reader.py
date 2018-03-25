@@ -10,9 +10,11 @@ import numpy as np
 import tensorflow as tf
 import pandas as pd
 import ops
+import json
 
+# For training only
 FILE_PATTERN = r'p([0-9]+)_([0-9]+)\.wav'
-
+TRAINING_RANGE = 300
 
 def get_category_cardinality(files):
     id_reg_exp = re.compile(FILE_PATTERN)
@@ -35,7 +37,7 @@ def randomize_files(files):
         yield files[file_index]
 
 
-def find_files(directory, pattern='*[0-9].wav'):
+def find_files(directory, pattern="*.wav"):
     '''Recursively finds all files matching the pattern.'''
     files = []
     for root, dirnames, filenames in os.walk(directory):
@@ -54,7 +56,7 @@ def align_local_condition(local_condition, length):
     return upsampled_lc
 
 
-def load_generic_audio(directory, sample_rate, lc_ext_name):
+def load_generic_audio(directory, sample_rate, lc_maps):
     '''Generator that yields audio waveforms from the directory.'''
     files = find_files(directory)
     id_reg_exp = re.compile(FILE_PATTERN)
@@ -69,18 +71,19 @@ def load_generic_audio(directory, sample_rate, lc_ext_name):
         else:
             # The file name matches the pattern for containing ids.
             category_id = int(ids[0][0])
+            if int(ids[0][1]) >= TRAINING_RANGE:
+                continue
+        print filename
         audio, _ = librosa.load(filename, sr=sample_rate, mono=True)
         audio = audio.reshape(-1, 1)
-        lc = None
-        if lc_ext_name is not None:
-            lc_filename = copy.deepcopy(filename)
-            if lc_filename.endswith('.wav'):
-                lc_filename = lc_filename[:-4] + lc_ext_name
-            lc = pd.read_csv(lc_filename+'.csv', sep=',', header=None).values
+        if lc_maps:
+            lc_filename = os.path.realpath(os.path.join(directory, lc_maps[filename.replace(directory, "")]))
+            lc = pd.read_csv(lc_filename, sep=',', header=None).values
             # TODO: upsampling to make lc same number of rows as audio
             lc = align_local_condition(lc, audio.shape[0])
+        else:
+            lc = None
         yield audio, filename, category_id, lc
-
 
 def trim_silence(audio, threshold, frame_length=2048):
     '''Removes silence at the beginning and end of a sample.'''
@@ -106,17 +109,14 @@ def not_all_have_id(files):
     return False
 
 
-def not_all_have_lc(files, lc_ext_name):
+def not_all_have_lc(directory, files, lc_maps):
     ''' Return true iff any of the wave files isn't accompanied
         by csv file specifying local conditions.
     '''
     for file in files:
-        lc_filename = copy.deepcopy(file)
-        if lc_filename.endswith('.wav'):
-            lc_filename = lc_filename[:-4]+lc_ext_name+".csv"
-            print lc_filename
-            if not os.path.isfile(lc_filename):
-                return True
+        lc_filename = os.path.realpath(os.path.join(directory, lc_maps[file.replace(directory, "")]))
+        if not os.path.isfile(lc_filename):
+            return True
     return False
 
 
@@ -133,15 +133,14 @@ class AudioReader(object):
                  sample_size=None,
                  silence_threshold=None,
                  queue_size=32,
-                 lc_ext_name=None):
-        self.audio_dir = audio_dir
+                 lc_maps_json=None):
+        self.audio_dir = os.path.abspath(audio_dir)
         self.sample_rate = sample_rate
         self.coord = coord
         self.sample_size = sample_size
         self.receptive_field = receptive_field
         self.silence_threshold = silence_threshold
         self.gc_enabled = gc_enabled
-        self.lc_ext_name = lc_ext_name
         self.threads = []
         self.sample_placeholder = tf.placeholder(dtype=tf.float32, shape=None)
         self.queue = tf.PaddingFIFOQueue(queue_size,
@@ -155,18 +154,26 @@ class AudioReader(object):
                                                 shapes=[()])
             self.gc_enqueue = self.gc_queue.enqueue([self.id_placeholder])
 
-        if self.lc_ext_name is not None:
+        self.lc_maps = None
+        if lc_maps_json is not None:
+            try:
+                with open(lc_maps_json, "r") as inputfile:
+                    self.lc_maps = json.load(inputfile)
+            except Exception as e:
+                print(e)
+                raise ValueError("Local conditioning is enabled, but json file for " 
+                                 "local condition mapping is not input correctly.")
             self.lc_placeholder = tf.placeholder(dtype=tf.float32, shape=None)
             self.lc_queue = tf.PaddingFIFOQueue(queue_size, ['float32'],
-                                                shapes=[(None, 1)])
+                                                shapes=[(None, None)])
             self.lc_enqueue = self.lc_queue.enqueue([self.lc_placeholder])
 
         # TODO Find a better way to check this.
         # Checking inside the AudioReader's thread makes it hard to terminate
         # the execution of the script, so we do it in the constructor for now.
-        files = find_files(audio_dir)
+        files = find_files(self.audio_dir)
         if not files:
-            raise ValueError("No audio files found in '{}'.".format(audio_dir))
+            raise ValueError("No audio files found in '{}'.".format(self.audio_dir))
         if self.gc_enabled and not_all_have_id(files):
             raise ValueError("Global conditioning is enabled, but file names "
                              "do not conform to pattern having id.")
@@ -188,8 +195,8 @@ class AudioReader(object):
             self.gc_category_cardinality = None
 
         # Check local conditions
-        if self.lc_ext_name is not None:
-            if not_all_have_lc(files, self.lc_ext_name):
+        if self.lc_maps is not None:
+            if not_all_have_lc(self.audio_dir, files, self.lc_maps):
                 raise ValueError('''Local condition is enabled,
                     but not all wave files have local conditions.''')
 
@@ -208,8 +215,9 @@ class AudioReader(object):
         # Go through the dataset multiple times
         while not stop:
             iterator = load_generic_audio(self.audio_dir, self.sample_rate,
-                                          self.lc_ext_name)
+                                          self.lc_maps)
             for audio, filename, category_id, lc in iterator:
+                print filename
                 if self.coord.should_stop():
                     stop = True
                     break
@@ -224,34 +232,33 @@ class AudioReader(object):
                               "threshold, or adjust volume of the audio."
                               .format(filename))
                     else:
-                        if self.lc_ext_name is not None:
+                        if self.lc_maps is not None:
                             lc = lc[keep_indices[0]:keep_indices[-1], :]
 
                 audio = np.pad(audio, [[self.receptive_field, 0], [0, 0]],
                                'constant')
-                if self.lc_ext_name is not None:
+                
+                if self.lc_maps is not None:
                     lc = np.pad(lc, [[self.receptive_field, 0], [0, 0]],
-                                'constant')
-                    '''
-                    temp
-                    '''
-                    lc_arr = np.asarray(lc)
-                    np.savetxt(filename+"_processed.csv", lc_arr,
+                               'constant')
+                    # lc_arr = np.asarray(lc)
+                    # np.savetxt(filename+"_processed.csv", lc_arr,
                                delimiter=",")
-                # assert(lc.shape[0] == audio.shape[0])
+
+                assert(lc.shape[0] == audio.shape[0])
+
                 if self.sample_size:
                     # Cut samples into pieces of size receptive_field +
                     # sample_size with receptive_field overlap
                     while len(audio) > self.receptive_field:
                         piece = audio[:(self.receptive_field +
                                         self.sample_size), :]
-                        if self.lc_ext_name is not None:
-                            lc_piece = lc[:(self.receptive_field +
-                                          self.sample_size), :]
+                        if self.lc_maps is not None:
+                            lc_piece = lc[:(self.sample_size), :]
                         sess.run(self.enqueue,
                                  feed_dict={self.sample_placeholder: piece})
                         audio = audio[self.sample_size:, :]
-                        if self.lc_ext_name is not None:
+                        if self.lc_maps is not None:
                             sess.run(self.lc_enqueue,
                                      feed_dict={self.lc_placeholder: lc_piece})
                             lc = lc[self.sample_size:, :]
@@ -264,7 +271,7 @@ class AudioReader(object):
                     if self.gc_enabled:
                         sess.run(self.gc_enqueue,
                                  feed_dict={self.id_placeholder: category_id})
-                    if self.lc_ext_name is not None:
+                    if self.lc_maps is not None:
                         sess.run(self.lc_enqueue,
                                  feed_dict={self.lc_placeholder: lc})
 

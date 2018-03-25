@@ -17,7 +17,7 @@ SAMPLES = 16000
 TEMPERATURE = 1.0
 LOGDIR = './logdir'
 WAVENET_PARAMS = './wavenet_params.json'
-SAVE_EVERY = None
+SAVE_EVERY = 16000
 SILENCE_THRESHOLD = 0.1
 
 
@@ -106,6 +106,11 @@ def get_arguments():
         type=str,
         default=None,
         help='The path to the local condition csv file (no header). If not provided, assume no local condition.') 
+    parser.add_argument(
+        '--compare_path', 
+        type=str,
+        default=None,
+        help='The path to the wave file for comparison with generation.') 
     arguments = parser.parse_args()
     if arguments.gc_channels is not None:
         if arguments.gc_cardinality is None:
@@ -149,11 +154,15 @@ def main():
         if args.lc_path is not None:
             lc = pd.read_csv(args.lc_path, sep=',',header=None).values
         else:
-            lc = np.zeros(shape=(1, args.lc_channels))
+            print (
+                ValueError('Location condition is enabled,' 
+                           'and a local condition file must be provided.'))
         lc = audio_reader.align_local_condition(lc, args.samples)
+
         lc_placeholder = tf.placeholder(tf.float32)
     else:
         lc = None
+        lc_placeholder = None
 
     started_datestring = "{0:%Y-%m-%dT%H-%M-%S}".format(datetime.now())
     logdir = os.path.join(args.logdir, 'generate', started_datestring)
@@ -209,8 +218,11 @@ def main():
         # Silence with a single random sample at the end.
         waveform = [quantization_channels / 2] * (net.receptive_field - 1)
         waveform.append(np.random.randint(quantization_channels))
-        if lc is not None:
-            waveform_lc = [[0] * args.lc_channels] * net.receptive_field
+    
+    if lc is not None:
+        waveform_lc = [[0] * args.lc_channels] * net.receptive_field
+    
+    probs = []
 
     if args.fast_generation and args.wav_seed:
         # When using the incremental generation, we need to
@@ -232,28 +244,30 @@ def main():
     last_sample_timestamp = datetime.now()
     for step in range(args.samples):
         if args.lc_channels > 0:
-            waveform_lc.append(list(lc[i, :]))
+            waveform_lc.append(list(lc[step, :]))
         if args.fast_generation:
             outputs = [next_sample]
             outputs.extend(net.push_ops)
             window = waveform[-1]
-            print(window)
             if args.lc_channels > 0:
-                lc_window = np.reshape(lc[-1], (1, -1))
-                print(lc_window)
+                lc_window = np.reshape(lc[step], (1, -1))
         else:
             if len(waveform) > net.receptive_field:
                 window = waveform[-net.receptive_field:]
                 if args.lc_channels > 0:
-                    lc_window = waveform_lc[-net.receptive_field:]
+                    lc_window = np.reshape(waveform_lc[-net.receptive_field:], 
+                                           (1, -1, args.lc_channels))
             else:
                 window = waveform
                 if args.lc_channels > 0:
-                    lc_window = waveform_lc
+                    lc_window = np.reshape(waveform_lc, (1, -1, args.lc_channels))
             outputs = [next_sample]
         
         # Run the WaveNet to predict the next sample.
-        prediction = sess.run(outputs, feed_dict={samples: window, lc_placeholder: lc_window})[0]
+        if args.lc_channels > 0:
+            prediction = sess.run(outputs, feed_dict={samples: window, lc_placeholder: lc_window})[0]
+        else:
+            prediction = sess.run(outputs, feed_dict={samples: window})[0]
 
         # Scale prediction distribution using temperature.
         np.seterr(divide='ignore')
@@ -274,6 +288,7 @@ def main():
         sample = np.random.choice(
             np.arange(quantization_channels), p=scaled_prediction)
         waveform.append(sample)
+        probs.append(scaled_prediction)
 
         # Show progress only once per second.
         current_sample_timestamp = datetime.now()
@@ -296,6 +311,27 @@ def main():
     datestring = str(datetime.now()).replace(' ', 'T')
     writer = tf.summary.FileWriter(logdir)
     tf.summary.audio('generated', decode, wavenet_params['sample_rate'])
+    
+    # Log prediction
+    tf.summary.image(
+        "Predicted Probabilities",
+        tf.reshape(
+            np.array(probs), 
+            [1, -1, wavenet_params['quantization_channels'], 1]),
+        max_outputs=1
+    )
+    if args.compare_path:
+        true_wav = librosa.load(args.compare_path, sr=wavenet_params['sample_rate'] )
+        decoded_true_wav = mu_law_decode(true_wav, wavenet_params['quantization_channels'])
+        # Log ground truth
+        tf.summary.image(
+            "Ground Truth",
+            tf.reshape(
+                decoded_true_wav, 
+                [1, -1, wavenet_params['quantization_channels'], 1]),
+            max_outputs=1
+        )
+
     summaries = tf.summary.merge_all()
     summary_out = sess.run(summaries,
                            feed_dict={samples: np.reshape(waveform, [-1, 1])})

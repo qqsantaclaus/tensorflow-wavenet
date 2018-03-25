@@ -380,11 +380,11 @@ class WaveNetModel(object):
             tf.summary.histogram(layer + '_dense', weights_dense)
             tf.summary.histogram(layer + '_skip', weights_skip)
             if global_condition_batch is not None:
-                tf.histogram_summary(layer + '_gc_filter', weights_gc_filter)
-                tf.histogram_summary(layer + '_gc_gate', weights_gc_gate)
+                tf.summary.histogram(layer + '_gc_filter', weights_gc_filter)
+                tf.summary.histogram(layer + '_gc_gate', weights_gc_gate)
             if local_condition_batch is not None:
-                tf.histogram_summary(layer + '_lc_filter', weights_lc_filter)
-                tf.histogram_summary(layer + '_lc_gate', weights_lc_gate)
+                tf.summary.histogram(layer + '_lc_filter', weights_lc_filter)
+                tf.summary.histogram(layer + '_lc_gate', weights_lc_gate)
             if self.use_biases:
                 tf.summary.histogram(layer + '_biases_filter', filter_bias)
                 tf.summary.histogram(layer + '_biases_gate', gate_bias)
@@ -765,6 +765,30 @@ class WaveNetModel(object):
                         [self.batch_size, -1, self.quantization_channels]),
                     [0, self.receptive_field, 0],
                     [-1, -1, -1])
+
+                # Log posterior distribution
+                # tf.summary.image(
+                #     "Posterior Distribution",
+                #     tf.transpose(
+                #         tf.reshape(
+                #             raw_output, 
+                #             [self.batch_size, -1, self.quantization_channels, 1]),
+                #         [0, 2, 1, 3]
+                #     ),
+                #     max_outputs=1
+                # )
+                # Log ground truth
+                # tf.summary.image(
+                #     "Truth",
+                #     tf.transpose(
+                #         tf.reshape(
+                #             target_output, 
+                #             [self.batch_size, -1, self.quantization_channels, 1]),
+                #         [0, 2, 1, 3]
+                #     ),
+                #     max_outputs=1
+                # )
+
                 target_output = tf.reshape(target_output,
                                            [-1, self.quantization_channels])
                 prediction = tf.reshape(raw_output,
