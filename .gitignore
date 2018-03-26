@@ -2,5 +2,6 @@ logdir/
 VCTK-Corpus/
 *.pyc
 training_tmp/
+.DS_Store
 
 
