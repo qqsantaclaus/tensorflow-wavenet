@@ -1,4 +1,6 @@
 logdir/
 VCTK-Corpus/
 *.pyc
+training_tmp/
+
 
