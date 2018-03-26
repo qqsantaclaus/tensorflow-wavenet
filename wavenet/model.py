@@ -732,9 +732,6 @@ class WaveNetModel(object):
 
             gc_embedding = self._embed_gc(global_condition_batch)
             encoded = self._one_hot(encoded_input)
-            encoded_input = tf.Print(encoded_input,
-                                     [tf.shape(encoded_input)],
-                                     message="encoded_input:")
             if self.scalar_input:
                 network_input = tf.reshape(
                     tf.cast(input_batch, tf.float32),
@@ -749,10 +746,8 @@ class WaveNetModel(object):
             if local_condition_batch is not None:
                 local_condition_batch = tf.slice(
                     local_condition_batch,
-                    [0, 1, 0],
-                    [-1,
-                     -1,
-                     -1])
+                    [0,   1,  0],
+                    [-1, -1, -1])
             raw_output = self._create_network(network_input, gc_embedding,
                                               local_condition_batch)
 
@@ -767,27 +762,21 @@ class WaveNetModel(object):
                     [-1, -1, -1])
 
                 # Log posterior distribution
-                # tf.summary.image(
-                #     "Posterior Distribution",
-                #     tf.transpose(
-                #         tf.reshape(
-                #             raw_output, 
-                #             [self.batch_size, -1, self.quantization_channels, 1]),
-                #         [0, 2, 1, 3]
-                #     ),
-                #     max_outputs=1
-                # )
+                tf.summary.image(
+                    "Posterior Distribution",
+                    tf.reshape(
+                        raw_output, 
+                        [self.batch_size, -1, self.quantization_channels, 1]),
+                    max_outputs=1
+                )
                 # Log ground truth
-                # tf.summary.image(
-                #     "Truth",
-                #     tf.transpose(
-                #         tf.reshape(
-                #             target_output, 
-                #             [self.batch_size, -1, self.quantization_channels, 1]),
-                #         [0, 2, 1, 3]
-                #     ),
-                #     max_outputs=1
-                # )
+                tf.summary.image(
+                    "Truth",
+                    tf.reshape(
+                        target_output, 
+                        [self.batch_size, -1, self.quantization_channels, 1]),
+                    max_outputs=1
+                )
 
                 target_output = tf.reshape(target_output,
                                            [-1, self.quantization_channels])
@@ -801,7 +790,7 @@ class WaveNetModel(object):
                 tf.summary.scalar('loss', reduced_loss)
 
                 if l2_regularization_strength is None:
-                    return reduced_loss
+                    return reduced_loss, prediction, target_output
                 else:
                     # L2 regularization for all trainable parameters
                     l2_loss = tf.add_n([tf.nn.l2_loss(v)
@@ -815,4 +804,4 @@ class WaveNetModel(object):
                     tf.summary.scalar('l2_loss', l2_loss)
                     tf.summary.scalar('total_loss', total_loss)
 
-                    return total_loss
+                    return total_loss, prediction, target_output

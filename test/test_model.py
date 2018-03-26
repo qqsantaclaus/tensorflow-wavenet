@@ -339,7 +339,7 @@ class TestNet(tf.test.TestCase):
         lc_placeholder = tf.placeholder(dtype=tf.float32)  \
             if self.local_conditioning else None
 
-        loss = self.net.loss(input_batch=audio_placeholder,
+        loss, _, _ = self.net.loss(input_batch=audio_placeholder,
                              global_condition_batch=gc_placeholder,
                              local_condition_batch=lc_placeholder)
         optimizer = optimizer_factory[self.optimizer_type](

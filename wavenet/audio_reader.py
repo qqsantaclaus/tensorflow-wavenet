@@ -242,10 +242,9 @@ class AudioReader(object):
                     lc = np.pad(lc, [[self.receptive_field, 0], [0, 0]],
                                'constant')
                     # lc_arr = np.asarray(lc)
-                    # np.savetxt(filename+"_processed.csv", lc_arr,
-                               delimiter=",")
+                    # np.savetxt(filename+"_processed.csv", lc_arr,delimiter=",")
 
-                assert(lc.shape[0] == audio.shape[0])
+                    assert(lc.shape[0] == audio.shape[0])
 
                 if self.sample_size:
                     # Cut samples into pieces of size receptive_field +
@@ -282,3 +281,6 @@ class AudioReader(object):
             thread.start()
             self.threads.append(thread)
         return self.threads
+
+    def output_audio(self, path, wav):
+        librosa.output.write_wav(path, wav, self.sample_rate)

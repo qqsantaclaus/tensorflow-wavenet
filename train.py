@@ -13,11 +13,14 @@ import json
 import os
 import sys
 import time
+import librosa
+import numpy as np
+import numpy.random as random
 
 import tensorflow as tf
 from tensorflow.python.client import timeline
 
-from wavenet import WaveNetModel, AudioReader, optimizer_factory
+from wavenet import WaveNetModel, AudioReader, optimizer_factory, mu_law_decode
 
 BATCH_SIZE = 1
 DATA_DIRECTORY = './VCTK-Corpus'
@@ -268,15 +271,19 @@ def main():
 
     if args.l2_regularization_strength == 0:
         args.l2_regularization_strength = None
-    loss = net.loss(input_batch=audio_batch,
-                    global_condition_batch=gc_id_batch,
-                    l2_regularization_strength=args.l2_regularization_strength,
-                    local_condition_batch=lc_batch)
+    loss, prediction, target_output = net.loss(input_batch=audio_batch,
+                                               global_condition_batch=gc_id_batch,
+                                               l2_regularization_strength=args.l2_regularization_strength,
+                                               local_condition_batch=lc_batch)
     optimizer = optimizer_factory[args.optimizer](
                     learning_rate=args.learning_rate,
                     momentum=args.momentum)
     trainable = tf.trainable_variables()
     optim = optimizer.minimize(loss, var_list=trainable)
+
+    ##### For record only #####
+    # Output to prediction, for wav output
+    proba = tf.cast(tf.nn.softmax(tf.cast(prediction, tf.float64)), tf.float32)
 
     # Set up logging for TensorBoard.
     writer = tf.summary.FileWriter(logdir)
@@ -320,8 +327,8 @@ def main():
                 print('Storing metadata')
                 run_options = tf.RunOptions(
                     trace_level=tf.RunOptions.FULL_TRACE)
-                summary, loss_value, _ = sess.run(
-                    [summaries, loss, optim],
+                summary, loss_value, prob_value, target_output, _= sess.run(
+                    [summaries, loss, prob, target_output, optim],
                     options=run_options,
                     run_metadata=run_metadata)
                 writer.add_summary(summary, step)
@@ -332,12 +339,30 @@ def main():
                 with open(timeline_path, 'w') as f:
                     f.write(tl.generate_chrome_trace_format(show_memory=True))
             else:
-                summary, loss_value, _ = sess.run([summaries, loss, optim])
+                summary, loss_value, proba_value, target_output_value, _ = sess.run([summaries, 
+                                                                                     loss, 
+                                                                                     proba, 
+                                                                                     target_output, 
+                                                                                     optim])
                 writer.add_summary(summary, step)
 
             duration = time.time() - start_time
             print('step {:d} - loss = {:.3f}, ({:.3f} sec/step)'
                   .format(step, loss_value, duration))
+
+            ##### For record only #####
+            if step % 50 == 0:
+                samples = np.array([random.choice(np.arange(wavenet_params["quantization_channels"]), p=proba_value[i])
+                                    for i in range(proba_value.shape[0])])
+                decode = mu_law_decode(samples, wavenet_params['quantization_channels'])
+                # print(decode.shape)
+                reader.output_audio("./training_tmp/training.wav", sess.run(decode))
+                
+                target_samples = np.array([random.choice(np.arange(wavenet_params["quantization_channels"]), p=target_output_value[i])
+                                            for i in range(target_output_value.shape[0])])
+                decode_target_output = mu_law_decode(target_samples, wavenet_params["quantization_channels"])
+                print(decode_target_output.shape)
+                reader.output_audio("./training_tmp/truth.wav", sess.run(decode_target_output))
 
             if step % args.checkpoint_every == 0:
                 save(saver, sess, logdir, step)
