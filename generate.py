@@ -13,6 +13,8 @@ import pandas as pd
 
 from wavenet import WaveNetModel, mu_law_decode, mu_law_encode, audio_reader
 
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
+
 SAMPLES = 16000
 TEMPERATURE = 1.0
 LOGDIR = './logdir'

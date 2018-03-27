@@ -22,6 +22,8 @@ from tensorflow.python.client import timeline
 
 from wavenet import WaveNetModel, AudioReader, optimizer_factory, mu_law_decode
 
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
+
 BATCH_SIZE = 1
 DATA_DIRECTORY = './VCTK-Corpus'
 LOGDIR_ROOT = './logdir'
@@ -37,9 +39,6 @@ EPSILON = 0.001
 MOMENTUM = 0.9
 MAX_TO_KEEP = 5
 METADATA = False
-
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
-
 
 def get_arguments():
     def _str_to_bool(s):

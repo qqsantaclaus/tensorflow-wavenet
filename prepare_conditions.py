@@ -50,11 +50,12 @@ def generate_lc_map(directory):
     for filename in files:
         p_filename = filename.split(directory)[-1]
         print filename, p_filename
-        p_lc_filename = p_filename.replace("wav48", "mfcc").replace(".wav", ".csv")
+        # p_lc_filename = p_filename.replace("wav48", "mfcc").replace(".wav", ".csv")
+        p_lc_filename = "../../mfcc/p225"+p_filename.replace(".wav", ".csv")
         lookup[p_filename] = p_lc_filename
-    with open(directory+"/maps.json", "w") as output:
+    with open(directory+"/maps_p225.json", "w") as output:
         json.dump(lookup, output)
 
 
 if __name__=="__main__":
-    generate_mfcc("../VCTK-Corpus", 16000)
+    generate_lc_map("../VCTK-Corpus/wav48/p225")
