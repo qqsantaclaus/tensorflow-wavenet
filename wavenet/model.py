@@ -293,9 +293,6 @@ class WaveNetModel(object):
         weights_gate = variables['gate']
 
         conv_filter = causal_conv(input_batch, weights_filter, dilation)
-        # conv_filter = tf.Print(conv_filter,
-        #                        [weights_filter],
-        #                        message="conv_filter: ")
         conv_gate = causal_conv(input_batch, weights_gate, dilation)
 
         if global_condition_batch is not None:
@@ -314,19 +311,11 @@ class WaveNetModel(object):
 
         if local_condition_batch is not None:
             weights_lc_filter = variables['lc_filtweights']
-            # weights_lc_filter = tf.Print(weights_lc_filter,
-            #                              [tf.shape(local_condition_batch),
-            #                               tf.shape(weights_lc_filter)],
-            #                              message="weights_lc_filter: ")
             conv_lc_filter = tf.nn.conv1d(local_condition_batch,
                                           weights_lc_filter,
                                           stride=1,
                                           padding="SAME",
                                           name="lc_filter")
-            # conv_lc_filter = tf.Print(conv_lc_filter,
-            #                           [tf.shape(conv_lc_filter),
-            #                            conv_lc_filter],
-            #                           message="conv_lc_filter: ")
             conv_shape = tf.shape(conv_filter)[1]
             lc_shape = tf.shape(local_condition_batch)[1]
             diff_len = lc_shape - conv_shape
@@ -726,9 +715,6 @@ class WaveNetModel(object):
             # We mu-law encode and quantize the input audioform.
             encoded_input = mu_law_encode(input_batch,
                                           self.quantization_channels)
-            # encoded_input = tf.Print(encoded_input,
-            #                          [tf.shape(encoded_input)],
-            #                          message="encoded_input:")
 
             gc_embedding = self._embed_gc(global_condition_batch)
             encoded = self._one_hot(encoded_input)
