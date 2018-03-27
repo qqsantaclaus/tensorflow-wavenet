@@ -113,6 +113,12 @@ def get_arguments():
         type=str,
         default=None,
         help='The path to the wave file for comparison with generation.') 
+    parser.add_argument(
+        '--lower_bound', 
+        type=int,
+        default=None,
+        help='The lowerbound for log probability of sample. Any probability below e^lower_bound will be cleared to 0.' 
+             'If not provided, assume no lower bound.') 
     arguments = parser.parse_args()
     if arguments.gc_channels is not None:
         if arguments.gc_cardinality is None:
@@ -274,6 +280,8 @@ def main():
         # Scale prediction distribution using temperature.
         np.seterr(divide='ignore')
         scaled_prediction = np.log(prediction) / args.temperature
+        if args.lower_bound:
+            scaled_prediction[scaled_prediction < args.lower_bound] = -np.inf
         scaled_prediction = (scaled_prediction -
                              np.logaddexp.reduce(scaled_prediction))
         scaled_prediction = np.exp(scaled_prediction)
