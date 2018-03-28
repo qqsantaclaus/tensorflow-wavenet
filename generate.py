@@ -1,4 +1,4 @@
-from __future__ import division
+from __future__ import division 
 from __future__ import print_function
 
 import argparse
@@ -331,7 +331,7 @@ def main():
         max_outputs=1
     )
     if args.compare_path:
-        true_wav = librosa.load(args.compare_path, sr=wavenet_params['sample_rate'] )
+        true_wav, _ = librosa.load(args.compare_path, sr=wavenet_params['sample_rate'] )
         decoded_true_wav = mu_law_decode(true_wav, wavenet_params['quantization_channels'])
         # Log ground truth
         tf.summary.image(
