@@ -748,12 +748,15 @@ class WaveNetModel(object):
                         [self.batch_size, -1, self.quantization_channels]),
                     [0, self.receptive_field, 0],
                     [-1, -1, -1])
-
+                
+                scaled_output = tf.max(raw_output, -15)
+                scaled_output = tf.cast(2*(scaled_output-tf.reduce_max(raw_output, axis=2)))
+                scaled_output = tf.cast(tf.nn.softmax(scaled_output, tf.float64), tf.float32)
                 # Log posterior distribution
                 tf.summary.image(
                     "Posterior Distribution",
                     tf.reshape(
-                        tf.cast(tf.nn.softmax(tf.cast(raw_output, tf.float64)), tf.float32),
+                        scaled_output,
                         [self.batch_size, -1, self.quantization_channels, 1]),
                     max_outputs=1
                 )
