@@ -253,7 +253,8 @@ class AudioReader(object):
                         piece = audio[:(self.receptive_field +
                                         self.sample_size), :]
                         if self.lc_maps is not None:
-                            lc_piece = lc[:(self.sample_size), :]
+                            lc_piece = lc[:(self.receptive_field + 
+					    self.sample_size), :]
                         sess.run(self.enqueue,
                                  feed_dict={self.sample_placeholder: piece})
                         audio = audio[self.sample_size:, :]
