@@ -1,1 +1,1 @@
-python generate.py --samples 32000 --fast_generation=False --wav_out_path=./results/gen_p225_99999_p225_001.wav --lc_channels=20 --lc_path=../VCTK-Corpus/mfcc/p225/p225_001.csv --temperature=1 logdir/train/p225/model.ckpt-99999
+python generate.py --samples 32000 --fast_generation=False --wav_out_path=./results/gen_p225_99999_p225_001.wav --lc_channels=20 --lc_path=../VCTK-Corpus/mfcc/p225/p225_001.csv --temperature=1 --compare_path=../VCTK-Corpus/wav48/p225/p225_001.wav logdir/train/p225/model.ckpt-99999

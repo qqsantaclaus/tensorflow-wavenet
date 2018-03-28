@@ -22,7 +22,7 @@ from tensorflow.python.client import timeline
 
 from wavenet import WaveNetModel, AudioReader, optimizer_factory, mu_law_decode
 
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 BATCH_SIZE = 1
 DATA_DIRECTORY = './VCTK-Corpus'

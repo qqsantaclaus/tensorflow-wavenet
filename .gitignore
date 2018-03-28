@@ -3,5 +3,6 @@ VCTK-Corpus/
 *.pyc
 training_tmp/
 .DS_Store
-
-
+results/
+ENV/
+log_train.txt
