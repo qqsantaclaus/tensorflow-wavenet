@@ -750,7 +750,7 @@ class WaveNetModel(object):
                     [-1, -1, -1])
                 
                 bounded_output = tf.maximum(raw_output, -15)
-                scaled_log_output = tf.cast(2*(bounded_output-tf.reduce_max(raw_output, axis=2)))
+                scaled_log_output = 2*(bounded_output-tf.reduce_max(raw_output, axis=2))
                 scaled_output = tf.cast(tf.nn.softmax(scaled_log_output, tf.float64), tf.float32)
                 # Log posterior distribution
                 tf.summary.image(
