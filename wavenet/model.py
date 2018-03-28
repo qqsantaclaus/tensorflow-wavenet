@@ -663,8 +663,10 @@ class WaveNetModel(object):
                                               lc_reshaped)
             out = tf.reshape(raw_output, [-1, self.quantization_channels])
             # Cast to float64 to avoid bug in TensorFlow
+            # out = out * 2
             proba = tf.cast(
-                tf.nn.softmax(tf.cast(out, tf.float64)), tf.float32)
+                tf.nn.softmax(tf.cast(2*out, tf.float64)), tf.float32)
+            # scale 2 and lower bound here
             last = tf.slice(
                 proba,
                 [tf.shape(proba)[0] - 1, 0],
