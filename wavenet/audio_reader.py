@@ -73,7 +73,7 @@ def load_generic_audio(directory, sample_rate, lc_maps):
             category_id = int(ids[0][0])
             if int(ids[0][1]) >= TRAINING_RANGE:
                 continue
-        print filename
+        # print(filename)
         audio, _ = librosa.load(filename, sr=sample_rate, mono=True)
         audio = audio.reshape(-1, 1)
         if lc_maps:
@@ -217,7 +217,7 @@ class AudioReader(object):
             iterator = load_generic_audio(self.audio_dir, self.sample_rate,
                                           self.lc_maps)
             for audio, filename, category_id, lc in iterator:
-                print filename
+                # print filename
                 if self.coord.should_stop():
                     stop = True
                     break
