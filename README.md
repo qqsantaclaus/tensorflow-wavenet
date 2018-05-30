@@ -63,6 +63,8 @@ For GPU support, use
 ```bash
 pip install -r requirements_gpu.txt
 ```
+## Working version
+Checkout "working_wavenet" branch
 
 ## Training the network
 
@@ -173,12 +175,6 @@ Run the test suite
 ```
 ./ci/test.sh
 ```
-
-## Missing features
-
-Currently there is no local conditioning on extra information which would allow
-context stacks or controlling what speech is generated.
-
 
 ## Related projects
 
