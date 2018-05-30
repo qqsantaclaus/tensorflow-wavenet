@@ -63,11 +63,13 @@ For GPU support, use
 ```bash
 pip install -r requirements_gpu.txt
 ```
+## Working version
+Checkout "working_wavenet" branch, which has local condition implemented.
 
 ## Training the network
 
 You can use any corpus containing `.wav` files.
-We've mainly used the [VCTK corpus](http://homepages.inf.ed.ac.uk/jyamagis/page3/page58/page58.html) (around 10.4GB, [Alternative host](http://www.udialogue.org/download/cstr-vctk-corpus.html)) so far.
+We've mainly used the [VCTK corpus](http://homepages.inf.ed.ac.uk/jyamagis/page3/page58/page58.html) (around 10.4GB, [Alternative host](http://www.udialogue.org/download/cstr-vctk-corpus.html)) so far. Also CMU ARCTIC slt (female) dataset.
 
 In order to train the network, execute
 ```bash
@@ -103,11 +105,9 @@ size of the embedding vector that is looked up based on the id of the speaker.
 The global conditioning logic in train.py and audio_reader.py is "hard-wired" to the VCTK corpus at the moment in that it expects to be able to determine the speaker id from the pattern of file naming used in VCTK, but can be easily be modified.
 
 ## Training with Local Conditioning
-If use local condition, lc_channels should be specified with a non-zero value and lc_maps_json should be specified with a json filename; each wav file should be accompanied by a csv file with rows being time series and columns being numerical local conditions (no header). lc_map_json specifies the key-value pair (wav filename, local condition filename) in json format; the paths in lc_map_json should all be relative to data_dir. 
-
-It is assumed that the time series of local conditions is of equal timestep and covers the same time span as wav and can be less frequent than wav.
+If use local condition, each wav file should be accompanied by a csv file of name format "wave name_ext name.csv" with rows being time series and columns being numerical local conditions (no header). Ext name part is provided by input argument. It is assumed that the time series is of equal timestep and covers the same time span as wav and can be less frequent than wav. 
 ```
---lc_channels=20 --lc_maps_json="maps.json"
+--use_lc=True --lc_ext_name="xxxx"
 ```
 
 ## Generating audio
@@ -175,12 +175,6 @@ Run the test suite
 ```
 ./ci/test.sh
 ```
-
-## Missing features
-
-Currently there is no local conditioning on extra information which would allow
-context stacks or controlling what speech is generated.
-
 
 ## Related projects
 
