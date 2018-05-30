@@ -64,12 +64,12 @@ For GPU support, use
 pip install -r requirements_gpu.txt
 ```
 ## Working version
-Checkout "working_wavenet" branch
+Checkout "working_wavenet" branch, which has local condition implemented.
 
 ## Training the network
 
 You can use any corpus containing `.wav` files.
-We've mainly used the [VCTK corpus](http://homepages.inf.ed.ac.uk/jyamagis/page3/page58/page58.html) (around 10.4GB, [Alternative host](http://www.udialogue.org/download/cstr-vctk-corpus.html)) so far.
+We've mainly used the [VCTK corpus](http://homepages.inf.ed.ac.uk/jyamagis/page3/page58/page58.html) (around 10.4GB, [Alternative host](http://www.udialogue.org/download/cstr-vctk-corpus.html)) so far. Also CMU ARCTIC slt (female) dataset.
 
 In order to train the network, execute
 ```bash
