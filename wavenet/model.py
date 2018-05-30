@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
-from .ops import causal_conv, mu_law_encode
+from .ops import causal_conv, mu_law_encode, inject_noise
 
 
 def create_variable(name, shape):
@@ -316,14 +316,16 @@ class WaveNetModel(object):
                                           stride=1,
                                           padding="SAME",
                                           name="lc_filter")
-            conv_shape = tf.shape(conv_filter)[1]
-            lc_shape = tf.shape(local_condition_batch)[1]
-            diff_len = lc_shape - conv_shape
+#             conv_shape = tf.shape(conv_filter)[1]
+#             lc_shape = tf.shape(local_condition_batch)[1]
+#             diff_len = lc_shape - conv_shape
             # diff_len = tf.Print(diff_len, [diff_len], message="diff_len: ")
-            padded_conv_lc_filter = tf.slice(conv_lc_filter,
-                                             [0, diff_len, 0],
-                                             [-1, -1, -1])
-            conv_filter = conv_filter + padded_conv_lc_filter
+#             padded_conv_lc_filter = tf.slice(conv_lc_filter,
+#                                              [0, diff_len, 0],
+#                                              [-1, -1, -1])
+            conv_filter_print = tf.Print(conv_filter, [tf.shape(conv_filter)], message="conv_filter size:")
+            conv_lc_filter_print = tf.Print(conv_lc_filter, [tf.shape(conv_lc_filter)], message="conv_lc_filter size:")
+            conv_filter = conv_filter_print + conv_lc_filter_print
 
             weights_lc_gate = variables['lc_gateweights']
             conv_lc_gate = tf.nn.conv1d(local_condition_batch,
@@ -331,10 +333,10 @@ class WaveNetModel(object):
                                         stride=1,
                                         padding="SAME",
                                         name="lc_gate")
-            padded_conv_lc_gate = tf.slice(conv_lc_gate,
-                                           [0, diff_len, 0],
-                                           [-1, -1, -1])
-            onv_gate = conv_gate + padded_conv_lc_gate
+#             padded_conv_lc_gate = tf.slice(conv_lc_gate,
+#                                            [0, diff_len, 0],
+#                                            [-1, -1, -1])
+            onv_gate = conv_gate + conv_lc_gate
 
         if self.use_biases:
             filter_bias = variables['filter_bias']
@@ -350,8 +352,9 @@ class WaveNetModel(object):
             out, weights_dense, stride=1, padding="SAME", name="dense")
 
         # The 1x1 conv to produce the skip output
-        skip_cut = tf.shape(out)[1] - output_width
-        out_skip = tf.slice(out, [0, skip_cut, 0], [-1, -1, -1])
+#         skip_cut = tf.shape(out)[1] - output_width
+#         out_skip = tf.slice(out, [0, skip_cut, 0], [-1, -1, -1])
+        out_skip = out
         weights_skip = variables['skip']
         skip_contribution = tf.nn.conv1d(
             out_skip, weights_skip, stride=1, padding="SAME", name="skip")
@@ -380,8 +383,8 @@ class WaveNetModel(object):
                 tf.summary.histogram(layer + '_biases_dense', dense_bias)
                 tf.summary.histogram(layer + '_biases_skip', skip_bias)
 
-        input_cut = tf.shape(input_batch)[1] - tf.shape(transformed)[1]
-        input_batch = tf.slice(input_batch, [0, input_cut, 0], [-1, -1, -1])
+#         input_cut = tf.shape(input_batch)[1] - tf.shape(transformed)[1]
+#         input_batch = tf.slice(input_batch, [0, input_cut, 0], [-1, -1, -1])
 
         return skip_contribution, input_batch + transformed
 
@@ -467,7 +470,8 @@ class WaveNetModel(object):
 
         current_layer = self._create_causal_layer(current_layer)
 
-        output_width = tf.shape(input_batch)[1] - self.receptive_field + 1
+#         output_width = tf.shape(input_batch)[1] - self.receptive_field + 1
+        output_width = tf.shape(input_batch)[1]
 
         # Add all defined dilation layers.
         with tf.name_scope('dilated_stack'):
@@ -663,9 +667,9 @@ class WaveNetModel(object):
                                               lc_reshaped)
             out = tf.reshape(raw_output, [-1, self.quantization_channels])
             # Cast to float64 to avoid bug in TensorFlow
-            # out = out * 2
+            
             proba = tf.cast(
-                tf.nn.softmax(tf.cast(2*out, tf.float64)), tf.float32)
+                tf.nn.softmax(tf.cast(out, tf.float64)), tf.float32)
             # scale 2 and lower bound here
             last = tf.slice(
                 proba,
@@ -715,11 +719,24 @@ class WaveNetModel(object):
         '''
         with tf.name_scope(name):
             # We mu-law encode and quantize the input audioform.
+            
+            # input with injected noise
+            # noisy_input = inject_noise(input_batch, self.quantization_channels)
+            
             encoded_input = mu_law_encode(input_batch,
-                                          self.quantization_channels)
-
+                                          self.quantization_channels, noise=False)
+          
+            # clean target
+            encoded_target = mu_law_encode(input_batch,
+                                           self.quantization_channels)
+            
+            # gc embedding
             gc_embedding = self._embed_gc(global_condition_batch)
+            
+            # one-hot embeddings for input and target
             encoded = self._one_hot(encoded_input)
+            encoded_t = self._one_hot(encoded_target)
+            
             if self.scalar_input:
                 network_input = tf.reshape(
                     tf.cast(input_batch, tf.float32),
@@ -742,11 +759,19 @@ class WaveNetModel(object):
             with tf.name_scope('loss'):
                 # Cut off the samples corresponding to the receptive field
                 # for the first predicted sample.
+#                 target_output = tf.slice(
+#                     tf.reshape(
+#                         encoded_t,
+#                         [self.batch_size, -1, self.quantization_channels]),
+#                     [0, self.receptive_field, 0],
+#                     [-1, -1, -1])
+                
+                # Don't cut off to make it robust to zero paddings
                 target_output = tf.slice(
                     tf.reshape(
-                        encoded,
+                        encoded_t,
                         [self.batch_size, -1, self.quantization_channels]),
-                    [0, self.receptive_field, 0],
+                    [0, 1, 0],
                     [-1, -1, -1])
                 
                 bounded_output = tf.maximum(raw_output, -15)
